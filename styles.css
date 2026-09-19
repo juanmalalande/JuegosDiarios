@@ -1,0 +1,233 @@
+/* ==========================================================
+   JUEGOS DIARIOS — estilos de la landing
+   Paleta y tipografías al principio para cambiarlas fácil.
+   ========================================================== */
+
+:root {
+  /* Base */
+  --fondo: #e6eee0;
+  --tinta: #16332a;
+  --tinta-suave: #4b6558;
+  --papel: #fbfdf9;
+
+  /* Colores de las cards (uno por juego) */
+  --mostaza: #f2b632;
+  --coral: #f26b5b;
+  --celeste: #8ec5e8;
+  --lila: #b9a4e6;
+  --hoja: #6cbf84;
+  --rosa: #f6b8c8;
+
+  --radio: 24px;
+  --borde: 2px solid var(--tinta);
+
+  --titulos: "Young Serif", Georgia, "Times New Roman", serif;
+  --texto: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+* {
+  margin: 0;
+}
+
+body {
+  min-height: 100vh;
+  background: var(--fondo);
+  color: var(--tinta);
+  font-family: var(--texto);
+  font-size: 1rem;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.contenedor {
+  width: min(1120px, 100% - 2.5rem);
+  margin-inline: auto;
+}
+
+/* ---------- Encabezado ---------- */
+
+.encabezado {
+  padding: clamp(3rem, 8vw, 6rem) 0 clamp(2rem, 5vw, 3.5rem);
+}
+
+.encabezado h1 {
+  font-family: var(--titulos);
+  font-weight: 400;
+  font-size: clamp(3.25rem, 11vw, 7rem);
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+}
+
+.bajada {
+  max-width: 34ch;
+  margin-top: 1.5rem;
+  font-size: clamp(1.1rem, 2.5vw, 1.3rem);
+  color: var(--tinta-suave);
+}
+
+/* ---------- Grilla de juegos ---------- */
+
+.juegos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1.25rem;
+  padding: 0;
+  list-style: none;
+}
+
+/* ---------- Card ---------- */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: var(--papel);
+  border: var(--borde);
+  border-radius: var(--radio);
+  color: inherit;
+  text-decoration: none;
+}
+
+.card:focus-visible {
+  outline: 3px solid var(--tinta);
+  outline-offset: 4px;
+}
+
+/* Colores: se usan como clase en cada card */
+.mostaza { --c: var(--mostaza); }
+.coral   { --c: var(--coral); }
+.celeste { --c: var(--celeste); }
+.lila    { --c: var(--lila); }
+.hoja    { --c: var(--hoja); }
+.rosa    { --c: var(--rosa); }
+
+/* Zona de color con formas geométricas.
+   Si más adelante querés una ilustración o captura del juego,
+   poné un <img> adentro de .miniatura y las formas desaparecen. */
+.miniatura {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: var(--c);
+  border-bottom: var(--borde);
+}
+
+.miniatura::before,
+.miniatura::after {
+  content: "";
+  position: absolute;
+}
+
+.miniatura::before {
+  bottom: -18%;
+  left: -8%;
+  width: 55%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--tinta);
+}
+
+.miniatura::after {
+  top: 16%;
+  right: 12%;
+  width: 38%;
+  aspect-ratio: 1;
+  border-radius: 50% 50% 0 50%;
+  background: var(--papel);
+  border: var(--borde);
+}
+
+/* Variaciones de formas para que no sean todas iguales */
+.juegos li:nth-child(3n + 2) .miniatura::after {
+  border-radius: 50%;
+}
+
+.juegos li:nth-child(3n) .miniatura::before {
+  left: auto;
+  right: -8%;
+  border-radius: 50% 50% 0 0;
+}
+
+.juegos li:nth-child(3n) .miniatura::after {
+  right: auto;
+  left: 14%;
+  border-radius: 0 50% 50% 50%;
+}
+
+.miniatura img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.miniatura:has(img)::before,
+.miniatura:has(img)::after {
+  display: none;
+}
+
+/* Texto de la card */
+.contenido {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 1.25rem 1.25rem 1.5rem;
+}
+
+.contenido h2 {
+  font-family: var(--titulos);
+  font-weight: 400;
+  font-size: 1.6rem;
+  line-height: 1.1;
+}
+
+.contenido p {
+  font-size: 0.95rem;
+  color: var(--tinta-suave);
+}
+
+.jugar {
+  margin-top: auto;
+  padding: 0.4rem 1.1rem;
+  border: var(--borde);
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.contenido p + .jugar {
+  margin-top: 0.75rem;
+}
+
+.card:hover .jugar,
+.card:focus-visible .jugar {
+  background: var(--tinta);
+  color: var(--papel);
+}
+
+/* ---------- Pie ---------- */
+
+.pie {
+  padding: clamp(3rem, 7vw, 5rem) 0 2.5rem;
+  font-size: 0.95rem;
+  color: var(--tinta-suave);
+}
+
+/* ---------- Accesibilidad ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .jugar {
+    transition: none;
+  }
+}

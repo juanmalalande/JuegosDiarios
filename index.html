@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Juegos diarios</title>
+  <meta name="description" content="Pequeños juegos para jugar todos los días.">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;700&family=Young+Serif&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <header class="encabezado contenedor">
+    <h1>Juegos diarios</h1>
+    <p class="bajada">Pequeños juegos para jugar todos los días.</p>
+  </header>
+
+  <main class="contenedor">
+
+    <!--
+      ==========================================================
+      CÓMO FUNCIONAN LOS LINKS
+      ==========================================================
+      Cada juego vive en su propia carpeta dentro de "games/"
+      y su archivo principal se llama SIEMPRE index.html:
+
+        games/
+          nombre-del-juego/
+            index.html
+
+      El link de cada card es:
+        href="games/NOMBRE-DE-LA-CARPETA/index.html"
+
+      Para agregar un juego nuevo: copiá un bloque <li> completo,
+      cambiá el href, el título, la descripción y el color
+      (mostaza, coral, celeste, lila, hoja o rosa).
+      ==========================================================
+    -->
+
+    <ul class="juegos">
+
+      <li>
+        <a class="card mostaza" href="games/QuienEsQuien/index.html">
+          <div class="miniatura"></div>
+          <div class="contenido">
+            <h2>Quién es quién?</h2>
+            <p>Encontrá al culpable haciendo preguntas y descartando sospechosos</p>
+            <span class="jugar">Jugar</span>
+          </div>
+        </a>
+      </li>
+
+      <li>
+        <a class="card coral" href="games/Laberinto/index.html">
+          <div class="miniatura"></div>
+          <div class="contenido">
+            <h2>Laberinto</h2>
+            <p>Simple. Recorré el laberinto desde el inicio hasta el fin. No es el de Bowie</p>
+            <span class="jugar">Jugar</span>
+          </div>
+        </a>
+      </li>
+
+      <li>
+        <a class="card celeste" href="games/HundisteMiAcorazado/index.html">
+          <div class="miniatura"></div>
+          <div class="contenido">
+            <h2>Hundiste Mi Acorazado</h2>
+            <p>El objetivo es hundir los acorazados del rival haciendo click en las coordenadas del panel</p>
+            <span class="jugar">Jugar</span>
+          </div>
+        </a>
+      </li>
+
+      <li>
+        <a class="card lila" href="games/Bananazos/index.html">
+          <div class="miniatura"></div>
+          <div class="contenido">
+            <h2>Bananazos</h2>
+            <p>Hay bronca con el otro gorila. Calculá el ángulo y la fuerza hasta darle un buen bananazo</p>
+            <span class="jugar">Jugar</span>
+          </div>
+        </a>
+      </li>
+
+      <li>
+        <a class="card hoja" href="games/Libertadores/index.html">
+          <div class="miniatura"></div>
+          <div class="contenido">
+            <h2>Libertadores</h2>
+            <p>Tirá el dado. Obtendrás un equipo campeón de la Libertadortes. Elegí un jugador. Armá un equipo. Conseguí la gloria eterna</p>
+            <span class="jugar">Jugar</span>
+          </div>
+        </a>
+      </li>
+
+<!--       <li>
+        <a class="card rosa" href="games/juego-6/index.html">
+          <div class="miniatura"></div>
+          <div class="contenido">
+            <h2>Juego 6</h2>
+            <p>Descripción corta del juego.</p>
+            <span class="jugar">Jugar</span>
+          </div>
+        </a>
+      </li> -->
+
+    </ul>
+  </main>
+
+  <footer class="pie contenedor">
+    <p>Todos los días, un rato para jugar.</p>
+  </footer>
+
+</body>
+</html>

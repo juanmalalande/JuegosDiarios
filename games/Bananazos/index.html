@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gorilas Diario</title>
+<style>
+  :root{
+    --sky-top:#241046;
+    --sky-mid:#7a3a6b;
+    --sky-bot:#ff9d5c;
+    --ink:#1a1030;
+    --panel:#170d2e;
+    --panel-2:#20123f;
+    --cream:#f4ecff;
+    --muted:#b7a6d9;
+    --banana:#ffc93c;
+    --banana-dark:#e0a416;
+    --miss:#ff6f6f;
+    --line:#3a2a5c;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background: radial-gradient(circle at 50% -10%, #2c1750 0%, #0f0820 55%, #0a0617 100%);
+    color:var(--cream);
+    font-family: Georgia, 'Iowan Old Style', 'Palatino Linotype', serif;
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+    padding: 28px 14px 60px;
+  }
+  .wrap{ width:100%; max-width: 560px; }
+
+  header{ text-align:center; margin-bottom:16px; }
+  h1{
+    font-family: Georgia, serif;
+    font-weight:700;
+    font-style:italic;
+    font-size: 2.1rem;
+    letter-spacing:0.5px;
+    margin: 0 0 4px;
+    color: var(--banana);
+    text-shadow: 0 2px 0 rgba(0,0,0,0.35);
+  }
+  .sub{
+    color:var(--muted);
+    font-size:0.92rem;
+    margin:0;
+  }
+  .daynum{ color:var(--cream); font-weight:bold; }
+
+  .colorbar{
+    display:flex;
+    gap:10px;
+    justify-content:center;
+    align-items:center;
+    margin: 14px 0 6px;
+    flex-wrap:wrap;
+  }
+  .colorbar .colorlabel{
+    font-size:0.8rem;
+    color:var(--muted);
+    font-family:'Courier New', monospace;
+    width:100%;
+    text-align:center;
+    margin-bottom:2px;
+  }
+  .swatch{
+    width:30px; height:30px;
+    border-radius:50%;
+    border:2px solid transparent;
+    cursor:pointer;
+    padding:0;
+    transition: transform 0.12s ease;
+  }
+  .swatch:hover{ transform: scale(1.1); }
+  .swatch.active{
+    border-color: var(--cream);
+    box-shadow: 0 0 0 2px var(--ink);
+    transform: scale(1.12);
+  }
+
+  .diffbar{
+    display:flex;
+    gap:8px;
+    justify-content:center;
+    margin: 8px 0 12px;
+  }
+  .diffbtn{
+    flex:1;
+    max-width:150px;
+    padding:9px 6px;
+    border-radius: var(--radius);
+    border:1px solid var(--line);
+    background:var(--panel);
+    color:var(--muted);
+    font-family: 'Courier New', monospace;
+    font-size:0.82rem;
+    letter-spacing:0.5px;
+    cursor:pointer;
+    transition: transform 0.12s ease, background 0.12s ease, color 0.12s ease;
+  }
+  .diffbtn:hover{ transform: translateY(-1px); }
+  .diffbtn.active{
+    background: var(--banana);
+    color:#3a2500;
+    border-color: var(--banana);
+    font-weight:bold;
+  }
+  .diffbtn .done-mark{ margin-left:4px; }
+
+  .stage{
+    position:relative;
+    background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-mid) 55%, var(--sky-bot) 100%);
+    border-radius: var(--radius);
+    overflow:hidden;
+    border: 1px solid var(--line);
+    box-shadow: 0 18px 40px rgba(0,0,0,0.45);
+  }
+  canvas{ display:block; width:100%; height:auto; }
+
+  .hud{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding: 8px 14px;
+    background: var(--panel);
+    border-radius: 0 0 var(--radius) var(--radius);
+    font-family:'Courier New', monospace;
+    font-size:0.82rem;
+    color:var(--muted);
+    border-top:1px solid var(--line);
+  }
+  .hud b{ color:var(--cream); }
+
+  .controls{
+    margin-top:14px;
+    background: var(--panel);
+    border:1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 16px;
+  }
+  .row{ display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+  .row label{ width:78px; font-size:0.85rem; color:var(--muted); flex-shrink:0; }
+  .row output{ width:48px; text-align:right; font-family:'Courier New', monospace; color:var(--cream); flex-shrink:0; }
+  input[type=range]{
+    flex:1;
+    -webkit-appearance:none;
+    height:6px;
+    border-radius:4px;
+    background: var(--line);
+    outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;
+    width:18px; height:18px;
+    border-radius:50%;
+    background: var(--banana);
+    border:2px solid var(--banana-dark);
+    cursor:pointer;
+  }
+  input[type=range]::-moz-range-thumb{
+    width:18px; height:18px;
+    border-radius:50%;
+    background: var(--banana);
+    border:2px solid var(--banana-dark);
+    cursor:pointer;
+  }
+
+  .throwbtn{
+    width:100%;
+    padding:13px;
+    font-size:1.05rem;
+    font-weight:bold;
+    font-family: Georgia, serif;
+    font-style:italic;
+    border:none;
+    border-radius: var(--radius);
+    background: var(--banana);
+    color:#3a2500;
+    cursor:pointer;
+    transition: transform 0.1s ease;
+  }
+  .throwbtn:active{ transform: scale(0.98); }
+  .throwbtn:disabled{ opacity:0.5; cursor:default; }
+
+  .history{
+    margin-top:10px;
+    text-align:center;
+    font-size:1.3rem;
+    letter-spacing:4px;
+    min-height:1.6rem;
+  }
+
+  .played-msg{
+    margin-top:14px;
+    background: var(--panel);
+    border:1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 18px;
+    text-align:center;
+  }
+  .played-msg .big{ font-size:1.8rem; margin:6px 0; }
+  .played-msg .grid{ font-size:1.4rem; letter-spacing:5px; margin:10px 0; }
+
+  .modal-overlay{
+    position:fixed; inset:0;
+    background: rgba(10,6,20,0.72);
+    display:flex; align-items:center; justify-content:center;
+    padding:20px;
+    z-index:10;
+  }
+  .modal{
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 28px 24px;
+    max-width: 360px;
+    width:100%;
+    text-align:center;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  }
+  .modal h2{
+    font-style:italic;
+    color: var(--banana);
+    margin:0 0 6px;
+    font-size:1.5rem;
+  }
+  .modal .stats{
+    display:flex;
+    justify-content:center;
+    gap:26px;
+    margin: 18px 0;
+    font-family:'Courier New', monospace;
+  }
+  .modal .stat b{ display:block; font-size:1.6rem; color:var(--cream); }
+  .modal .stat span{ font-size:0.75rem; color:var(--muted); letter-spacing:0.5px; }
+  .modal .grid{ font-size:1.5rem; letter-spacing:6px; margin-bottom:18px; }
+  .modal button{
+    width:100%;
+    padding:12px;
+    border:none;
+    border-radius:8px;
+    font-family: Georgia, serif;
+    font-weight:bold;
+    cursor:pointer;
+    margin-top:8px;
+  }
+  .sharebtn{ background: var(--banana); color:#3a2500; }
+  .closebtn{ background:transparent; color:var(--muted); border:1px solid var(--line) !important; }
+  .copied{ color: var(--banana); font-size:0.8rem; margin-top:6px; min-height:1em; }
+
+  footer{ text-align:center; margin-top:18px; color:var(--muted); font-size:0.78rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Gorilas Diario</h1>
+    <p class="sub">Desafío <span class="daynum" id="dayNum">#0</span> · <span id="dateLabel"></span></p>
+  </header>
+
+  <div class="colorbar" id="colorbar">
+    <div class="colorlabel">Elegí el color de tu mono</div>
+  </div>
+
+  <div class="diffbar" id="diffbar">
+    <button class="diffbtn" data-diff="facil">Fácil</button>
+    <button class="diffbtn" data-diff="medio">Medio</button>
+    <button class="diffbtn" data-diff="dificil">Difícil</button>
+  </div>
+
+  <div id="gameArea"></div>
+
+  <footer>Un tiro por dificultad, por día. Volvé mañana por una ciudad nueva.</footer>
+</div>
+
+<script>
+(function(){
+
+  // ---------- Seeded RNG ----------
+  function hashStr(str){
+    let h = 1779033703 ^ str.length;
+    for (let i=0;i<str.length;i++){
+      h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+      h = (h << 13) | (h >>> 19);
+    }
+    return function(){
+      h = Math.imul(h ^ (h>>>16), 2246822507);
+      h = Math.imul(h ^ (h>>>13), 3266489909);
+      h ^= h >>> 16;
+      return h >>> 0;
+    };
+  }
+  function mulberry32(seed){
+    let a = seed;
+    return function(){
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function makeRng(seedString){
+    const seedFn = hashStr(seedString);
+    return mulberry32(seedFn());
+  }
+
+  // ---------- Day setup ----------
+  const EPOCH = new Date('2025-01-01T00:00:00');
+  const now = new Date();
+  const todayKey = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
+  const dayNumber = Math.floor((new Date(now.getFullYear(),now.getMonth(),now.getDate()) - EPOCH) / 86400000) + 1;
+  document.getElementById('dayNum').textContent = '#' + dayNumber;
+  document.getElementById('dateLabel').textContent = now.toLocaleDateString('es-AR', {day:'numeric', month:'long', year:'numeric'});
+
+  const DIFFS = {
+    facil:   {label:'Fácil',   minGap:3, maxGap:4, windMax:2.2, gravMin:0.28, gravMax:0.38},
+    medio:   {label:'Medio',   minGap:5, maxGap:6, windMax:4.2, gravMin:0.30, gravMax:0.42},
+    dificil: {label:'Difícil', minGap:6, maxGap:8, windMax:6.5, gravMin:0.30, gravMax:0.48}
+  };
+  const GRAV_BASELINE = 0.34;
+
+  const COLORS = [
+    {id:'rojo',    hex:'#ff5f5f'},
+    {id:'azul',    hex:'#57a8ff'},
+    {id:'verde',   hex:'#6ede8a'},
+    {id:'amarillo',hex:'#ffe066'},
+    {id:'violeta', hex:'#b98bff'},
+    {id:'rosa',    hex:'#ff8bd0'}
+  ];
+
+  const gameArea = document.getElementById('gameArea');
+  const diffButtons = document.querySelectorAll('.diffbtn');
+  const colorbar = document.getElementById('colorbar');
+  let currentDiff = 'facil';
+  let playerColor = COLORS[0].hex;
+
+  async function loadColorPref(){
+    try{
+      const r = await window.storage.get('pref:color', false);
+      if(r) playerColor = JSON.parse(r.value);
+    }catch(e){}
+  }
+  async function saveColorPref(hex){
+    try{ await window.storage.set('pref:color', JSON.stringify(hex), false); }catch(e){}
+  }
+
+  function renderColorbar(){
+    COLORS.forEach(c=>{
+      let btn = colorbar.querySelector(`[data-color="${c.hex}"]`);
+      if(!btn){
+        btn = document.createElement('button');
+        btn.className='swatch';
+        btn.dataset.color = c.hex;
+        btn.style.background = c.hex;
+        btn.title = c.id;
+        btn.addEventListener('click', async ()=>{
+          playerColor = c.hex;
+          await saveColorPref(playerColor);
+          renderColorbar();
+          if(session && session.drawScene) session.drawScene(null);
+        });
+        colorbar.appendChild(btn);
+      }
+      btn.classList.toggle('active', c.hex === playerColor);
+    });
+  }
+
+  // ---------- Storage helpers ----------
+  async function getResult(diff){
+    try{
+      const r = await window.storage.get('result:'+todayKey+':'+diff, false);
+      return r ? JSON.parse(r.value) : null;
+    }catch(e){ return null; }
+  }
+  async function saveResult(diff, data){
+    try{
+      await window.storage.set('result:'+todayKey+':'+diff, JSON.stringify(data), false);
+    }catch(e){ console.error('storage error', e); }
+  }
+
+  // ---------- Level generation ----------
+  function genLevel(diff){
+    const cfg = DIFFS[diff];
+    const rng = makeRng(todayKey + ':' + diff);
+    const W = 640, H = 380;
+    const nBuildings = 9;
+    const bw = W / nBuildings;
+    const buildings = [];
+    for(let i=0;i<nBuildings;i++){
+      const h = 90 + rng()*170;
+      const hue = 250 + rng()*40;
+      buildings.push({
+        x: i*bw, w: bw - 4,
+        h: h, y: H - h,
+        color: `hsl(${hue.toFixed(0)}, 35%, ${(14+rng()*8).toFixed(0)}%)`,
+        lit: []
+      });
+      const rows = Math.floor(h/22), cols = Math.floor((bw-4)/14);
+      for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
+        if(rng() < 0.35) buildings[i].lit.push([r,c]);
+      }
+    }
+    const gap = cfg.minGap + Math.floor(rng()*(cfg.maxGap-cfg.minGap+1));
+    const leftIdx = Math.floor(rng()* (nBuildings-gap-1));
+    const rightIdx = leftIdx + gap;
+    const wind = (rng()*2-1) * cfg.windMax;
+    const gravity = cfg.gravMin + rng()*(cfg.gravMax-cfg.gravMin);
+
+    const gL = buildings[leftIdx];
+    const gR = buildings[rightIdx];
+    return {
+      W,H, buildings,
+      wind, gravity,
+      player: {x: gL.x + gL.w/2, y: gL.y - 6, buildingIdx:leftIdx},
+      target: {x: gR.x + gR.w/2, y: gR.y - 6, buildingIdx:rightIdx}
+    };
+  }
+
+  function roundRect(ctx,x,y,w,h,r){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+  }
+  function drawTag(ctx,x,y,text,bg,fg){
+    const w = ctx.measureText(text).width + 12;
+    ctx.save();
+    ctx.fillStyle = bg;
+    roundRect(ctx, x-w/2, y-11, w, 15, 4);
+    ctx.fill();
+    ctx.fillStyle = fg;
+    ctx.fillText(text, x, y);
+    ctx.restore();
+  }
+
+  // ---------- Game state per difficulty session ----------
+  let session = null;
+
+  function renderDiffButtons(results){
+    diffButtons.forEach(btn=>{
+      const d = btn.dataset.diff;
+      btn.classList.toggle('active', d===currentDiff);
+      const base = DIFFS[d].label;
+      btn.innerHTML = base + (results[d] ? ' <span class="done-mark">✓</span>' : '');
+    });
+  }
+
+  async function init(){
+    await loadColorPref();
+    renderColorbar();
+    const results = {};
+    for(const d of Object.keys(DIFFS)) results[d] = await getResult(d);
+    renderDiffButtons(results);
+    await loadDifficulty(currentDiff, results[currentDiff]);
+
+    diffButtons.forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        currentDiff = btn.dataset.diff;
+        renderDiffButtons(results);
+        await loadDifficulty(currentDiff, results[currentDiff]);
+      });
+    });
+  }
+
+  async function loadDifficulty(diff, existingResult){
+    if(existingResult){
+      showPlayedMessage(diff, existingResult);
+      return;
+    }
+    buildGameUI(diff);
+  }
+
+  function showPlayedMessage(diff, result){
+    gameArea.innerHTML = `
+      <div class="played-msg">
+        <div style="color:var(--muted); font-size:0.85rem;">Ya jugaste ${DIFFS[diff].label} hoy</div>
+        <div class="grid">${result.outcomes.join('')}</div>
+        <div class="big">🍌 ${result.shots} tiro${result.shots===1?'':'s'} · ⏱ ${formatTime(result.time)}</div>
+        <button class="throwbtn" id="shareAgainBtn">Compartir resultado</button>
+        <div class="copied" id="copiedMsg2"></div>
+      </div>
+    `;
+    document.getElementById('shareAgainBtn').addEventListener('click', ()=> doShare(diff, result));
+  }
+
+  function formatTime(ms){
+    const s = Math.floor(ms/1000);
+    const m = Math.floor(s/60);
+    const rs = s%60;
+    return String(m).padStart(2,'0')+':'+String(rs).padStart(2,'0');
+  }
+
+  function buildGameUI(diff){
+    session = genLevel(diff);
+    session.diff = diff;
+    session.shots = 0;
+    session.outcomes = [];
+    session.startTime = null;
+    session.banana = null;
+    session.finished = false;
+
+    gameArea.innerHTML = `
+      <div class="stage">
+        <canvas id="cv" width="640" height="380"></canvas>
+        <div class="hud">
+          <span>Viento: <b id="windLabel"></b></span>
+          <span>Gravedad: <b id="gravLabel"></b></span>
+          <span>Tiros: <b id="shotsLabel">0</b></span>
+        </div>
+      </div>
+      <div class="controls">
+        <div class="row">
+          <label for="angle">Ángulo</label>
+          <input type="range" id="angle" min="1" max="89" value="45">
+          <output id="angleOut">45°</output>
+        </div>
+        <div class="row">
+          <label for="power">Fuerza</label>
+          <input type="range" id="power" min="10" max="100" value="55">
+          <output id="powerOut">55</output>
+        </div>
+        <button class="throwbtn" id="throwBtn">Lanzar 🍌</button>
+      </div>
+      <div class="history" id="historyLine"></div>
+    `;
+
+    const canvas = document.getElementById('cv');
+    const ctx = canvas.getContext('2d');
+    const angleInput = document.getElementById('angle');
+    const powerInput = document.getElementById('power');
+    const angleOut = document.getElementById('angleOut');
+    const powerOut = document.getElementById('powerOut');
+    const throwBtn = document.getElementById('throwBtn');
+    const shotsLabel = document.getElementById('shotsLabel');
+    const historyLine = document.getElementById('historyLine');
+    const windDir = session.wind >= 0 ? '→' : '←';
+    document.getElementById('windLabel').textContent = windDir + ' ' + Math.abs(session.wind).toFixed(1);
+    document.getElementById('gravLabel').textContent = (session.gravity / GRAV_BASELINE).toFixed(2) + 'x';
+
+    angleInput.addEventListener('input', ()=> angleOut.textContent = angleInput.value + '°');
+    powerInput.addEventListener('input', ()=> powerOut.textContent = powerInput.value);
+
+    function drawScene(bananaPos){
+      const {W,H,buildings,player,target} = session;
+      ctx.clearRect(0,0,W,H);
+      // stars
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      for(let i=0;i<40;i++){
+        const sx = (i*53)%W, sy = (i*97)%160;
+        ctx.fillRect(sx, sy, 1.5, 1.5);
+      }
+      // buildings
+      buildings.forEach((b,idx)=>{
+        ctx.fillStyle = b.color;
+        ctx.fillRect(b.x, b.y, b.w, b.h);
+        ctx.fillStyle = 'rgba(255,214,120,0.85)';
+        b.lit.forEach(([r,c])=>{
+          ctx.fillRect(b.x + 4 + c*14, b.y + 6 + r*22, 7, 10);
+        });
+      });
+      // gorillas
+      ctx.font = '30px serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('🦍', player.x, player.y);
+      ctx.save();
+      ctx.scale(-1,1);
+      ctx.fillText('🦍', -target.x, target.y);
+      ctx.restore();
+
+      // "remera" de color sobre el mono del jugador
+      ctx.save();
+      ctx.globalAlpha = 0.88;
+      ctx.fillStyle = playerColor;
+      roundRect(ctx, player.x-9, player.y-16, 18, 11, 4);
+      ctx.fill();
+      ctx.restore();
+
+      // carteles VOS / RIVAL
+      ctx.font = 'bold 11px Courier New, monospace';
+      ctx.textAlign = 'center';
+      drawTag(ctx, player.x, player.y-34, 'VOS', playerColor, '#1a1030');
+      drawTag(ctx, target.x, target.y-34, 'RIVAL', '#8a7fb0', '#f4ecff');
+
+      // banana
+      if(bananaPos){
+        ctx.font = '20px serif';
+        ctx.fillText('🍌', bananaPos.x, bananaPos.y);
+      }
+    }
+    session.drawScene = drawScene;
+    drawScene(null);
+
+    function addHistoryMark(mark){
+      session.outcomes.push(mark);
+      historyLine.textContent = session.outcomes.join('');
+    }
+
+    function checkBuildingCollision(x,y, skipIdx){
+      for(let i=0;i<session.buildings.length;i++){
+        if(i===skipIdx) continue;
+        const b = session.buildings[i];
+        if(x >= b.x && x <= b.x+b.w && y >= b.y && y <= session.H){
+          return true;
+        }
+      }
+      return false;
+    }
+
+    async function finishGame(){
+      session.finished = true;
+      const elapsed = Date.now() - session.startTime;
+      throwBtn.disabled = true;
+      const result = {shots: session.shots, time: elapsed, outcomes: session.outcomes.slice()};
+      await saveResult(diff, result);
+      showResultModal(diff, result);
+    }
+
+    function launch(){
+      if(session.finished) return;
+      if(session.startTime === null) session.startTime = Date.now();
+      const angleDeg = parseFloat(angleInput.value);
+      const power = parseFloat(powerInput.value);
+      const rad = angleDeg * Math.PI/180;
+      const speed = power * 0.16;
+      let vx = Math.cos(rad) * speed;
+      let vy = -Math.sin(rad) * speed;
+      let x = session.player.x, y = session.player.y;
+      const g = session.gravity;
+      const wind = session.wind * 0.012;
+      throwBtn.disabled = true;
+
+      const step = ()=>{
+        vx += wind;
+        vy += g;
+        x += vx;
+        y += vy;
+
+        const dx = x - session.target.x, dy = y - session.target.y;
+        if(Math.sqrt(dx*dx+dy*dy) < 20){
+          drawScene({x,y});
+          addHistoryMark('🎯');
+          shotsLabel.textContent = ++session.shots;
+          finishGame();
+          return;
+        }
+        if(x < 0 || x > session.W || y > session.H){
+          drawScene(null);
+          session.shots++;
+          shotsLabel.textContent = session.shots;
+          addHistoryMark('💨');
+          throwBtn.disabled = false;
+          return;
+        }
+        if(checkBuildingCollision(x,y, y > session.player.y-10 ? session.player.buildingIdx : -1)){
+          drawScene({x,y});
+          session.shots++;
+          shotsLabel.textContent = session.shots;
+          addHistoryMark('🧱');
+          throwBtn.disabled = false;
+          return;
+        }
+        drawScene({x,y});
+        requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    }
+
+    throwBtn.addEventListener('click', launch);
+  }
+
+  function showResultModal(diff, result){
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal">
+        <h2>¡Le diste! 🎉</h2>
+        <div class="grid">${result.outcomes.join('')}</div>
+        <div class="stats">
+          <div class="stat"><b>${result.shots}</b><span>TIROS</span></div>
+          <div class="stat"><b>${formatTime(result.time)}</b><span>TIEMPO</span></div>
+        </div>
+        <button class="sharebtn" id="shareBtn">Compartir resultado</button>
+        <div class="copied" id="copiedMsg"></div>
+        <button class="closebtn" id="closeModalBtn">Cerrar</button>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    document.getElementById('shareBtn').addEventListener('click', ()=> doShare(diff, result));
+    document.getElementById('closeModalBtn').addEventListener('click', async ()=>{
+      overlay.remove();
+      const results = {}; results[diff] = result;
+      for(const d of Object.keys(DIFFS)){ if(d!==diff) results[d] = await getResult(d); }
+      renderDiffButtons(results);
+      showPlayedMessage(diff, result);
+    });
+  }
+
+  async function doShare(diff, result){
+    const text = `🦍 Gorilas Diario #${dayNumber} (${DIFFS[diff].label})\n${result.outcomes.join('')}\n🍌 ${result.shots} tiros · ⏱ ${formatTime(result.time)}`;
+    const copiedEl = document.getElementById('copiedMsg') || document.getElementById('copiedMsg2');
+    try{
+      if(navigator.share){
+        await navigator.share({text});
+      } else {
+        await navigator.clipboard.writeText(text);
+        if(copiedEl) copiedEl.textContent = '¡Copiado al portapapeles!';
+      }
+    }catch(e){
+      try{
+        await navigator.clipboard.writeText(text);
+        if(copiedEl) copiedEl.textContent = '¡Copiado al portapapeles!';
+      }catch(e2){}
+    }
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>

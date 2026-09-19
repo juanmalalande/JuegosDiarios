@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quién Es Quién — Expediente Abierto</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header>
+  <div class="title display">Quién Es <span>Quién</span></div>
+  <div class="header-right">
+    <button class="icon-btn" id="muteBtn" title="Silenciar sonido">🔊</button>
+    <div class="stamp">Caso Activo</div>
+  </div>
+</header>
+
+<div class="meta-bar">
+  <div class="meta-left">
+    <div>Sospechosos: <strong id="remainingCount">24</strong> / <span id="totalCount">24</span></div>
+    <div>Preguntas: <strong id="questionCount">0</strong></div>
+  </div>
+  <div class="difficulty" id="difficultyGroup">
+    <button class="diff-btn" data-diff="facil">Fácil</button>
+    <button class="diff-btn active" data-diff="normal">Normal</button>
+    <button class="diff-btn" data-diff="dificil">Difícil</button>
+  </div>
+</div>
+
+<div class="layout">
+
+  <div class="case-file">
+    <div class="qrow">
+      <select id="attrSelect"></select>
+      <select id="valueSelect"></select>
+      <button class="ask" id="askBtn">Preguntar</button>
+    </div>
+    <div class="answer-line" id="answerLine">Elegí un atributo y preguntá para empezar a descartar sospechosos.</div>
+    <div class="manual-note" id="manualNote">Modo difícil: el descarte es manual. Tocá vos mismo a los sospechosos que quedan afuera según la respuesta.</div>
+    <div class="log" id="log"></div>
+  </div>
+
+  <div class="controls">
+    <div class="hint">Tocá un sospechoso para ver las opciones: descartarlo, restaurarlo o acusarlo. Confirmá abajo cuando estés seguro.</div>
+    <button class="guess-btn" id="guessBtn" disabled>Acusar al seleccionado</button>
+  </div>
+
+  <div class="board" id="board"></div>
+
+</div>
+
+<div class="action-menu" id="actionMenu">
+  <button class="eliminate-opt" data-action="eliminate">✕ Descartar sospechoso</button>
+  <button class="restore-opt" data-action="restore">↺ Restaurar sospechoso</button>
+  <button class="accuse-opt" data-action="accuse">🎯 Acusar a este</button>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="result-card" id="resultCard">
+    <button class="close-x" id="closeResultBtn" aria-label="Cerrar y revisar el tablero">✕</button>
+    <h2 id="resultTitle">—</h2>
+    <p id="resultText">—</p>
+    <div class="result-actions">
+      <button class="share-btn" id="shareBtn">📤 Compartir resultado</button>
+      <button class="again" id="againBtn">Nuevo caso</button>
+    </div>
+  </div>
+</div>
+
+<button class="reopen-btn" id="reopenBtn">🔍 Ver resultado</button>
+
+<script>
+/* ---------------- AUDIO ---------------- */
+let audioCtx = null;
+let muted = false;
+function ensureAudio(){
+  if(!audioCtx){
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if(audioCtx.state === 'suspended') audioCtx.resume();
+}
+function tone(freq, dur, type, gainPeak, delay){
+  if(muted) return;
+  ensureAudio();
+  const t0 = audioCtx.currentTime + (delay||0);
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = type || 'sine';
+  osc.frequency.setValueAtTime(freq, t0);
+  gain.gain.setValueAtTime(0, t0);
+  gain.gain.linearRampToValueAtTime(gainPeak || 0.15, t0 + 0.015);
+  gain.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+  osc.connect(gain).connect(audioCtx.destination);
+  osc.start(t0);
+  osc.stop(t0 + dur + 0.02);
+}
+function playClick(){ tone(320, 0.08, 'square', 0.06); }
+function playYes(){ tone(660, 0.12, 'sine', 0.14); tone(880, 0.18, 'sine', 0.12, 0.09); }
+function playNo(){ tone(180, 0.22, 'sawtooth', 0.1); tone(140, 0.28, 'sawtooth', 0.08, 0.05); }
+function playFlip(){ tone(500, 0.07, 'triangle', 0.05); }
+function playWin(){
+  [523,659,784,1047].forEach((f,i)=> tone(f, 0.3, 'sine', 0.12, i*0.11));
+}
+function playLose(){ tone(200, 0.4, 'sawtooth', 0.12); tone(140, 0.5, 'sawtooth', 0.1, 0.15); }
+
+const muteBtn = document.getElementById('muteBtn');
+muteBtn.addEventListener('click', () => {
+  muted = !muted;
+  muteBtn.textContent = muted ? '🔇' : '🔊';
+  muteBtn.classList.toggle('muted', muted);
+  if(!muted){ ensureAudio(); playClick(); }
+});
+
+/* ---------------- DATA ---------------- */
+const NAMES = ["Aldo","Bea","Ciro","Dana","Edu","Flor","Gus","Hilda","Iván","Juana",
+  "Kike","Lola","Marco","Nina","Oscar","Pía","Quique","Rosa","Sebas","Tere",
+  "Uga","Vito","Wanda","Yago","Nico","Mora","Facu","Zoe","Bruno","Cata","Tato","Vera"];
+
+const GENDER = ["M","F","M","F","M","F","M","F","M","F",
+  "M","F","M","F","M","F","M","F","M","F",
+  "F","M","F","M","M","F","M","F","M","F","M","F"];
+
+const ATTRS_BASE = {
+  hairColor: { label:"Color de pelo", values:["negro","castaño","rubio","rojo","canoso"] },
+  hairStyle: { label:"Estilo de pelo", values:["calvo","corto","largo","rulos"] },
+  glasses:   { label:"Anteojos", values:["sí","no"] },
+  hat:       { label:"Sombrero", values:["sí","no"] },
+  facialHair:{ label:"Barba/bigote", values:["sí","no"] },
+  earrings:  { label:"Aros", values:["sí","no"] },
+  freckles:  { label:"Pecas", values:["sí","no"] },
+  smiling:   { label:"Sonriendo", values:["sí","no"] }
+};
+const ATTRS_EXTRA = {
+  eyeColor: { label:"Color de ojos", values:["marrón","azul","verde"] },
+  mole:     { label:"Lunar", values:["sí","no"] }
+};
+
+const DIFFICULTY = {
+  facil:   { count:16, extraAttrs:false, autoElim:true  },
+  normal:  { count:24, extraAttrs:true,  autoElim:true  },
+  dificil: { count:32, extraAttrs:true,  autoElim:false }
+};
+
+const HAIR_HEX = { negro:"#2b2420", castaño:"#5c3a21", rubio:"#d8b158", rojo:"#a1442a", canoso:"#c4c1ba" };
+const SKIN_HEX = ["#e8b98a","#d39c6e","#f0cba0","#b97b4e","#8a5a34"];
+const EYE_HEX = { "marrón":"#4a2f1c", "azul":"#3a6ea8", "verde":"#3c7a4f" };
+
+function seededRandom(seed){
+  let s = seed;
+  return function(){
+    s = (s * 9301 + 49297) % 233280;
+    return s / 233280;
+  };
+}
+
+let currentDiff = 'normal';
+let ATTRS = {};
+function refreshAttrs(){
+  const cfg = DIFFICULTY[currentDiff];
+  ATTRS = cfg.extraAttrs ? {...ATTRS_BASE, ...ATTRS_EXTRA} : {...ATTRS_BASE};
+}
+
+function makeSuspects(){
+  const cfg = DIFFICULTY[currentDiff];
+  const list = [];
+  for(let i=0;i<cfg.count;i++){
+    const rnd = seededRandom(i*97 + 13 + Math.floor(Math.random()*100000));
+    const pick = arr => arr[Math.floor(rnd()*arr.length)];
+    const bool = () => rnd() > 0.5 ? "sí" : "no";
+    const gender = GENDER[i];
+    list.push({
+      id:i,
+      name:NAMES[i],
+      gender,
+      hairColor: pick(ATTRS_BASE.hairColor.values),
+      hairStyle: pick(ATTRS_BASE.hairStyle.values),
+      glasses: bool(),
+      hat: bool(),
+      facialHair: gender === "M" ? bool() : "no",
+      earrings: bool(),
+      freckles: bool(),
+      smiling: bool(),
+      eyeColor: pick(ATTRS_EXTRA.eyeColor.values),
+      mole: bool(),
+      skin: pick(SKIN_HEX),
+      eliminated:false
+    });
+  }
+  return list;
+}
+
+/* ---------------- SVG PORTRAIT ---------------- */
+function portraitSVG(s){
+  const hairFill = HAIR_HEX[s.hairColor];
+  const eyeFill = EYE_HEX[s.eyeColor] || "#2b2420";
+  let hair = "";
+  if(s.hairStyle === "calvo"){
+    hair = "";
+  } else if(s.hairStyle === "corto"){
+    hair = `<path d="M18 40 Q50 6 82 40 L82 30 Q50 12 18 30 Z" fill="${hairFill}"/>`;
+  } else if(s.hairStyle === "largo"){
+    hair = `<path d="M14 42 Q50 4 86 42 L88 78 L78 78 L76 46 Q50 20 24 46 L22 78 L12 78 Z" fill="${hairFill}"/>`;
+  } else {
+    hair = `<g fill="${hairFill}">
+      <circle cx="24" cy="30" r="8"/><circle cx="36" cy="20" r="9"/><circle cx="50" cy="16" r="9"/>
+      <circle cx="64" cy="20" r="9"/><circle cx="76" cy="30" r="8"/><circle cx="30" cy="38" r="7"/>
+      <circle cx="70" cy="38" r="7"/>
+    </g>`;
+  }
+  const facial = s.facialHair === "sí"
+    ? `<path d="M30 68 Q50 84 70 68 Q68 78 50 80 Q32 78 30 68 Z" fill="${hairFill}" opacity="0.85"/>`
+    : "";
+  const glasses = s.glasses === "sí"
+    ? `<g stroke="#20242c" stroke-width="2.5" fill="none">
+        <circle cx="38" cy="52" r="9"/><circle cx="62" cy="52" r="9"/>
+        <line x1="47" y1="52" x2="53" y2="52"/>
+        <line x1="29" y1="50" x2="22" y2="47"/><line x1="71" y1="50" x2="78" y2="47"/>
+      </g>`
+    : "";
+  const hat = s.hat === "sí"
+    ? `<g fill="#2c2b28"><rect x="24" y="10" width="52" height="8" rx="2"/><rect x="34" y="-4" width="32" height="18" rx="2"/></g>`
+    : "";
+  const earrings = s.earrings === "sí"
+    ? `<circle cx="20" cy="60" r="2.5" fill="#d68a2c"/><circle cx="80" cy="60" r="2.5" fill="#d68a2c"/>`
+    : "";
+  const mouth = s.smiling === "sí"
+    ? `<path d="M40 68 Q50 76 60 68" stroke="#7a3b30" stroke-width="3" fill="none" stroke-linecap="round"/>`
+    : `<line x1="41" y1="70" x2="59" y2="70" stroke="#7a3b30" stroke-width="3" stroke-linecap="round"/>`;
+  const freckles = s.freckles === "sí"
+    ? `<g fill="#8a5a34" opacity="0.55">
+        <circle cx="32" cy="60" r="1.3"/><circle cx="36" cy="63" r="1.3"/><circle cx="30" cy="65" r="1.3"/>
+        <circle cx="68" cy="60" r="1.3"/><circle cx="64" cy="63" r="1.3"/><circle cx="70" cy="65" r="1.3"/>
+      </g>`
+    : "";
+  const mole = s.mole === "sí"
+    ? `<circle cx="63" cy="63" r="1.6" fill="#4a2f1c" opacity="0.75"/>`
+    : "";
+
+  return `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <rect width="100" height="100" fill="#d8d0ba"/>
+    <ellipse cx="50" cy="58" rx="26" ry="30" fill="${s.skin}"/>
+    <path d="M42 58 Q50 64 58 58" stroke="#00000022" stroke-width="1.5" fill="none"/>
+    <circle cx="40" cy="55" r="2.4" fill="${eyeFill}"/>
+    <circle cx="60" cy="55" r="2.4" fill="${eyeFill}"/>
+    ${mouth}
+    ${freckles}
+    ${mole}
+    ${facial}
+    ${hair}
+    ${hat}
+    ${glasses}
+    ${earrings}
+  </svg>`;
+}
+
+/* ---------------- STATE ---------------- */
+let suspects = [];
+let secret = null;
+let selectedId = null;
+let questionCount = 0;
+let gameOver = false;
+let lastAccusedId = null;
+let lastWin = false;
+let answerHistory = [];
+
+const boardEl = document.getElementById('board');
+const remainingCountEl = document.getElementById('remainingCount');
+const totalCountEl = document.getElementById('totalCount');
+const questionCountEl = document.getElementById('questionCount');
+const attrSelect = document.getElementById('attrSelect');
+const valueSelect = document.getElementById('valueSelect');
+const askBtn = document.getElementById('askBtn');
+const answerLine = document.getElementById('answerLine');
+const manualNote = document.getElementById('manualNote');
+const logEl = document.getElementById('log');
+const guessBtn = document.getElementById('guessBtn');
+const overlay = document.getElementById('overlay');
+const resultCard = document.getElementById('resultCard');
+const resultTitle = document.getElementById('resultTitle');
+const resultText = document.getElementById('resultText');
+const difficultyGroup = document.getElementById('difficultyGroup');
+const closeResultBtn = document.getElementById('closeResultBtn');
+const reopenBtn = document.getElementById('reopenBtn');
+const shareBtn = document.getElementById('shareBtn');
+
+difficultyGroup.addEventListener('click', (e) => {
+  const btn = e.target.closest('.diff-btn');
+  if(!btn) return;
+  currentDiff = btn.dataset.diff;
+  [...difficultyGroup.children].forEach(b => b.classList.toggle('active', b === btn));
+  playClick();
+  newGame();
+});
+
+function populateAttrSelect(){
+  attrSelect.innerHTML = Object.entries(ATTRS)
+    .map(([key,def]) => `<option value="${key}">${def.label}</option>`).join("");
+  populateValueSelect();
+}
+function populateValueSelect(){
+  const key = attrSelect.value;
+  valueSelect.innerHTML = ATTRS[key].values
+    .map(v => `<option value="${v}">${v}</option>`).join("");
+}
+attrSelect.addEventListener('change', populateValueSelect);
+
+function renderBoard(){
+  boardEl.innerHTML = "";
+  suspects.forEach(s => {
+    const isSecret = gameOver && s.id === secret.id;
+    const isWrongPick = gameOver && !lastWin && s.id === lastAccusedId;
+    const card = document.createElement('div');
+    let cls = 'suspect';
+    if(s.eliminated) cls += ' eliminated';
+    if(selectedId === s.id && !gameOver) cls += ' suggested';
+    if(isSecret){ cls += ' reveal-front reveal-secret'; }
+    if(isWrongPick){ cls += ' reveal-front reveal-wrong'; }
+    card.className = cls;
+    const ribbon = isSecret
+      ? '<div class="reveal-ribbon">Sospechoso real</div>'
+      : (isWrongPick ? '<div class="reveal-ribbon">Tu acusación</div>' : '');
+    card.innerHTML = `
+      <div class="flip-inner">
+        <div class="face front">${ribbon}${portraitSVG(s)}<div class="name">${s.name}</div></div>
+        <div class="face back">
+          <div class="stamp-x">✕</div>
+          <div class="stamp-label">Descartado</div>
+        </div>
+      </div>`;
+    card.addEventListener('click', (evt) => onSuspectClick(s.id, card, evt));
+    boardEl.appendChild(card);
+  });
+  const remaining = suspects.filter(s => !s.eliminated).length;
+  remainingCountEl.textContent = remaining;
+  totalCountEl.textContent = suspects.length;
+  questionCountEl.textContent = questionCount;
+  guessBtn.disabled = selectedId === null || gameOver;
+  manualNote.classList.toggle('show', !DIFFICULTY[currentDiff].autoElim);
+  reopenBtn.classList.toggle('show', gameOver && !overlay.classList.contains('show'));
+}
+
+const actionMenu = document.getElementById('actionMenu');
+let menuTargetId = null;
+
+function onSuspectClick(id, cardEl, evt){
+  if(gameOver) return;
+  evt.stopPropagation();
+  const s = suspects.find(x => x.id === id);
+  menuTargetId = id;
+
+  // toggle menu options depending on current state
+  actionMenu.querySelector('.eliminate-opt').style.display = s.eliminated ? 'none' : 'block';
+  actionMenu.querySelector('.restore-opt').style.display = s.eliminated ? 'block' : 'none';
+  actionMenu.querySelector('.accuse-opt').style.display = s.eliminated ? 'none' : 'block';
+
+  const rect = cardEl.getBoundingClientRect();
+  actionMenu.style.left = (rect.left + window.scrollX) + 'px';
+  actionMenu.style.top = (rect.bottom + window.scrollY + 6) + 'px';
+  actionMenu.classList.add('show');
+  playClick();
+}
+
+actionMenu.addEventListener('click', (e) => {
+  const btn = e.target.closest('button');
+  if(!btn || menuTargetId === null) return;
+  const s = suspects.find(x => x.id === menuTargetId);
+  const action = btn.dataset.action;
+  if(action === 'eliminate'){
+    s.eliminated = true;
+    if(selectedId === s.id) selectedId = null;
+    playFlip();
+  } else if(action === 'restore'){
+    s.eliminated = false;
+    playFlip();
+  } else if(action === 'accuse'){
+    selectedId = (selectedId === s.id) ? null : s.id;
+    playClick();
+  }
+  closeMenu();
+  renderBoard();
+});
+
+function closeMenu(){
+  actionMenu.classList.remove('show');
+  menuTargetId = null;
+}
+document.addEventListener('click', (e) => {
+  if(!actionMenu.contains(e.target)) closeMenu();
+});
+
+function addLog(text){
+  const line = document.createElement('div');
+  line.textContent = text;
+  logEl.prepend(line);
+}
+
+function ask(){
+  if(gameOver) return;
+  const key = attrSelect.value;
+  const val = valueSelect.value;
+  const answer = secret[key] === val;
+  questionCount++;
+  answerHistory.push(answer);
+  playClick();
+
+  const autoElim = DIFFICULTY[currentDiff].autoElim;
+  let eliminatedNow = 0;
+  if(autoElim){
+    suspects.forEach(s => {
+      if(s.eliminated) return;
+      const matchesVal = s[key] === val;
+      if(answer && !matchesVal){ s.eliminated = true; eliminatedNow++; }
+      if(!answer && matchesVal){ s.eliminated = true; eliminatedNow++; }
+    });
+  }
+
+  const label = ATTRS[key].label.toLowerCase();
+  answerLine.innerHTML = `¿${label} = <b>${val}</b>? — ${answer ? '<span class="yes">SÍ</span>' : '<span class="no">NO</span>'}`;
+  addLog(`P${questionCount}: ¿${label} = ${val}? → ${answer ? 'Sí' : 'No'}`);
+
+  setTimeout(() => { answer ? playYes() : playNo(); }, 60);
+  if(autoElim && eliminatedNow > 0){
+    setTimeout(playFlip, 220);
+  }
+
+  renderBoard();
+
+  const remaining = suspects.filter(s => !s.eliminated).length;
+  if(autoElim && remaining === 1 && selectedId === null){
+    selectedId = suspects.find(s => !s.eliminated).id;
+    renderBoard();
+  }
+}
+askBtn.addEventListener('click', ask);
+
+function guess(){
+  if(selectedId === null || gameOver) return;
+  const s = suspects.find(x => x.id === selectedId);
+  gameOver = true;
+  lastAccusedId = s.id;
+  const win = s.id === secret.id;
+  lastWin = win;
+  resultCard.className = 'result-card ' + (win ? 'win' : 'lose');
+  resultTitle.textContent = win ? '¡Caso resuelto!' : 'Acusación errónea';
+  resultText.textContent = win
+    ? `Identificaste a ${secret.name} en ${questionCount} pregunta${questionCount===1?'':'s'}.`
+    : `${s.name} era inocente. El verdadero sospechoso era ${secret.name}. Cerrá este cartel para revisar el tablero.`;
+  overlay.classList.add('show');
+  win ? playWin() : playLose();
+  renderBoard();
+}
+guessBtn.addEventListener('click', guess);
+
+const DIFF_LABEL = { facil:'Fácil', normal:'Normal', dificil:'Difícil' };
+
+function buildShareText(){
+  const grid = answerHistory.map(a => a ? '🟩' : '🟥').join('');
+  const outcome = lastWin ? '✅ Caso resuelto' : '❌ Acusación errónea';
+  const lines = [
+    `🕵️ Quién Es Quién — ${DIFF_LABEL[currentDiff]}`,
+    `${outcome} en ${questionCount} pregunta${questionCount===1?'':'s'}`,
+    grid || '—'
+  ];
+  return lines.join('\n');
+}
+
+async function shareResult(){
+  const text = buildShareText();
+  if(navigator.share){
+    try{ await navigator.share({ text }); }
+    catch(err){ /* el usuario cerró el menú, no hacemos nada */ }
+    return;
+  }
+  try{
+    await navigator.clipboard.writeText(text);
+    const original = shareBtn.textContent;
+    shareBtn.textContent = '✅ Copiado al portapapeles';
+    shareBtn.classList.add('copied');
+    setTimeout(() => {
+      shareBtn.textContent = original;
+      shareBtn.classList.remove('copied');
+    }, 2200);
+  }catch(err){
+    window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+  }
+}
+shareBtn.addEventListener('click', () => { playClick(); shareResult(); });
+
+closeResultBtn.addEventListener('click', () => {
+  playClick();
+  overlay.classList.remove('show');
+  renderBoard();
+});
+reopenBtn.addEventListener('click', () => {
+  playClick();
+  overlay.classList.add('show');
+  renderBoard();
+});
+overlay.addEventListener('click', (e) => {
+  if(e.target === overlay){
+    overlay.classList.remove('show');
+    renderBoard();
+  }
+});
+
+document.getElementById('againBtn').addEventListener('click', () => { playClick(); newGame(); });
+
+function newGame(){
+  refreshAttrs();
+  suspects = makeSuspects();
+  secret = suspects[Math.floor(Math.random()*suspects.length)];
+  selectedId = null;
+  questionCount = 0;
+  gameOver = false;
+  lastAccusedId = null;
+  lastWin = false;
+  answerHistory = [];
+  logEl.innerHTML = "";
+  answerLine.textContent = "Elegí un atributo y preguntá para empezar a descartar sospechosos.";
+  overlay.classList.remove('show');
+  reopenBtn.classList.remove('show');
+  populateAttrSelect();
+  renderBoard();
+}
+
+newGame();
+</script>
+</body>
+</html>

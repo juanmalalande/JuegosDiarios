@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Acorazado del día</title>
+<style>
+  :root{
+    --paper: #EDE6D6;
+    --paper-dark: #E1D7BF;
+    --paper-line: #C9BC9C;
+    --ink: #1B2A4A;
+    --ink-soft: #3C4E71;
+    --teal: #2F6F6B;
+    --flare: #B5402A;
+    --ripple: #6E8B9C;
+    --brass: #AD8747;
+    --brass-fill: #E4C98A;
+    --shadow: rgba(27,42,74,0.18);
+  }
+
+  * { box-sizing: border-box; }
+
+  body{
+    margin:0;
+    background: var(--paper);
+    background-image:
+      linear-gradient(var(--paper-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--paper-line) 1px, transparent 1px);
+    background-size: 26px 26px;
+    background-attachment: fixed;
+    color: var(--ink);
+    font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+    padding: 28px 16px 60px;
+  }
+
+  .page{ max-width: 900px; margin: 0 auto; }
+
+  .masthead{
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 16px;
+    margin-bottom: 24px;
+  }
+  .masthead-top{
+    display:flex;
+    justify-content: space-between;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+  }
+  h1{
+    font-size: clamp(1.5rem, 4vw, 2.1rem);
+    margin: 0;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+  }
+  .date{
+    margin:0;
+    font-family: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+    text-transform: capitalize;
+  }
+  .lede{
+    margin: 10px 0 18px;
+    max-width: 62ch;
+    line-height: 1.5;
+    color: var(--ink-soft);
+    font-size: 0.98rem;
+  }
+
+  .tabs{
+    display:flex;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+  .tab{
+    font-family: inherit;
+    background: transparent;
+    border: none;
+    border-bottom: 3px solid transparent;
+    padding: 8px 4px;
+    margin-right: 18px;
+    font-size: 1rem;
+    color: var(--ink-soft);
+    cursor: pointer;
+    transition: color .15s ease, border-color .15s ease;
+  }
+  .tab:hover{ color: var(--ink); }
+  .tab.active{
+    color: var(--ink);
+    border-bottom-color: var(--brass);
+    font-weight: 700;
+  }
+  .tab .sub{
+    display:block;
+    font-family: ui-monospace, monospace;
+    font-size: 0.68rem;
+    font-weight: 400;
+    color: var(--ink-soft);
+    margin-top: 2px;
+  }
+
+  .layout{
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 260px;
+    gap: 28px;
+    align-items: start;
+  }
+  @media (max-width: 720px){
+    .layout{ grid-template-columns: 1fr; }
+  }
+
+  .chart-wrap{
+    background: var(--paper-dark);
+    border: 1px solid var(--paper-line);
+    border-radius: 4px;
+    padding: 18px;
+    box-shadow: 0 2px 10px var(--shadow) inset;
+  }
+
+  .chart{
+    display: grid;
+    gap: 3px;
+    max-width: 560px;
+    margin: 0 auto;
+    user-select: none;
+  }
+  .chart.locked .cell{ pointer-events: none; }
+
+  .label-cell{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-family: ui-monospace, "SF Mono", Consolas, monospace;
+    font-size: clamp(0.6rem, 1.6vw, 0.78rem);
+    color: var(--ink-soft);
+    transition: color .12s ease, transform .12s ease;
+  }
+  .label-cell.active{
+    color: var(--ink);
+    font-weight: 700;
+    transform: scale(1.08);
+  }
+
+  .cell{
+    aspect-ratio: 1 / 1;
+    background: var(--paper);
+    border: 1px solid var(--paper-line);
+    border-radius: 2px;
+    position: relative;
+    cursor: pointer;
+    transition: background-color .12s ease, border-color .12s ease;
+  }
+  .cell:hover{ background: #F5EFE0; border-color: var(--ink-soft); }
+  .cell.revealed{ cursor: default; }
+  .cell.revealed:hover{ background: var(--paper); border-color: var(--paper-line); }
+
+  .cell.miss::after{
+    content:"";
+    position:absolute; inset: 30%;
+    border-radius: 50%;
+    border: 2px solid var(--ripple);
+    box-shadow: 0 0 0 4px rgba(110,139,156,0.14);
+  }
+
+  .cell.hit::before, .cell.hit::after{
+    content:"";
+    position:absolute;
+    top:50%; left:50%;
+    width: 68%; height: 2.5px;
+    background: var(--flare);
+    transform-origin: center;
+  }
+  .cell.hit::before{ transform: translate(-50%,-50%) rotate(45deg); }
+  .cell.hit::after{ transform: translate(-50%,-50%) rotate(-45deg); }
+
+  .cell.sunk{ background: var(--brass-fill); border-color: var(--brass); }
+  .cell.sunk::before, .cell.sunk::after{ background: var(--ink); }
+
+  .log{
+    background: var(--paper-dark);
+    border: 1px solid var(--paper-line);
+    border-radius: 4px;
+    padding: 18px;
+    display:flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .log-status{
+    font-family: ui-monospace, monospace;
+    font-size: 0.85rem;
+    line-height: 1.7;
+    border-bottom: 1px dashed var(--paper-line);
+    padding-bottom: 12px;
+  }
+  .log-status .record{
+    display:block;
+    margin-top: 6px;
+    color: var(--teal);
+    font-weight: 700;
+  }
+
+  .log-ships{
+    list-style: none;
+    margin:0; padding:0;
+    font-size: 0.88rem;
+    display:flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .log-ships li{ display:flex; justify-content: space-between; gap: 8px; }
+  .log-ships .st{ font-family: ui-monospace, monospace; font-size: 0.75rem; }
+  .log-ships .st.sunk{ color: var(--teal); font-weight: 700; }
+  .log-ships .st.pend{ color: var(--ink-soft); }
+
+  .log-title{
+    font-size: 0.95rem;
+    margin: 0;
+    padding-top: 4px;
+    border-top: 1px dashed var(--paper-line);
+  }
+
+  .log-list{
+    list-style: none;
+    margin:0; padding:0;
+    max-height: 220px;
+    overflow-y: auto;
+    display:flex;
+    flex-direction: column-reverse;
+    gap: 3px;
+    font-family: ui-monospace, monospace;
+    font-size: 0.82rem;
+  }
+  .log-list li{ display:flex; justify-content: space-between; padding: 2px 0; }
+  .log-list li.hit{ color: var(--flare); }
+  .log-list li.miss{ color: var(--ripple); }
+  .log-list .empty{ color: var(--ink-soft); font-style: italic; }
+
+  .btn-ghost, .btn-primary{
+    font-family: inherit;
+    font-size: 0.9rem;
+    padding: 9px 14px;
+    border-radius: 3px;
+    cursor: pointer;
+    text-align:center;
+  }
+  .btn-ghost{
+    background: transparent;
+    border: 1px solid var(--ink-soft);
+    color: var(--ink);
+  }
+  .btn-ghost:hover{ border-color: var(--ink); background: rgba(27,42,74,0.05); }
+  .btn-primary{
+    background: var(--ink);
+    border: 1px solid var(--ink);
+    color: var(--paper);
+    font-weight: 700;
+  }
+  .btn-primary:hover{ background: var(--ink-soft); }
+
+  .overlay{
+    position: fixed; inset: 0;
+    background: rgba(27,42,74,0.55);
+    display:flex; align-items:center; justify-content:center;
+    padding: 20px;
+    z-index: 10;
+  }
+  .overlay[hidden]{ display:none; }
+  .modal{
+    background: var(--paper);
+    border: 1px solid var(--ink);
+    border-radius: 4px;
+    padding: 28px;
+    max-width: 400px;
+    width: 100%;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+  }
+  .modal-eyebrow{
+    margin:0 0 4px;
+    font-family: ui-monospace, monospace;
+    font-size: 0.75rem;
+    color: var(--teal);
+    font-weight: 700;
+  }
+  .modal h2{ margin: 0 0 12px; font-size: 1.4rem; }
+  .modal p{ line-height: 1.5; color: var(--ink-soft); margin: 0 0 8px;}
+  .modal-note{ font-size: 0.85rem; font-style: italic; }
+  .modal-actions{ margin-top: 18px; display:flex; justify-content:flex-end; }
+
+  a.credit{ display:none; }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <header class="masthead">
+    <div class="masthead-top">
+      <h1>Acorazado del día</h1>
+      <p class="date" id="today-date"></p>
+    </div>
+    <p class="lede">Encontrá y hundí el o los acorazados escondidos en la grilla de hoy. Cada casillero que tocás cuenta como un disparo — no hay vuelta atrás.</p>
+    <nav class="tabs" id="tabs"></nav>
+  </header>
+
+  <main class="layout">
+    <section class="chart-wrap">
+      <div class="chart" id="chart"></div>
+    </section>
+    <aside class="log">
+      <div class="log-status" id="log-status"></div>
+      <ul class="log-ships" id="log-ships"></ul>
+      <h2 class="log-title">Bitácora de disparos</h2>
+      <ol class="log-list" id="log-list"></ol>
+      <button class="btn-ghost" id="reset-btn">Reiniciar tablero</button>
+    </aside>
+  </main>
+</div>
+
+<div class="overlay" id="overlay" hidden>
+  <div class="modal">
+    <p class="modal-eyebrow">Objetivo hundido</p>
+    <h2 id="modal-title"></h2>
+    <p id="modal-detail"></p>
+    <p class="modal-note" id="modal-note"></p>
+    <div class="modal-actions">
+      <button class="btn-primary" id="modal-close">Volver a la carta</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+
+  const DIFFICULTIES = {
+    facil:   { label: "Fácil",   size: 8,  shipCount: 1, lenMin: 3, lenMax: 4 },
+    medio:   { label: "Medio",   size: 10, shipCount: 2, lenMin: 3, lenMax: 5 },
+    dificil: { label: "Difícil", size: 13, shipCount: 3, lenMin: 3, lenMax: 6 },
+  };
+  const ORIENTATIONS = ["H","V","D1","D2"];
+  const DIFF_ORDER = ["facil","medio","dificil"];
+
+  // ---------- date & seeding ----------
+  function todayKey(){
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,"0");
+    const day = String(d.getDate()).padStart(2,"0");
+    return `${y}-${m}-${day}`;
+  }
+
+  function cyrb53(str, seed){
+    let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed;
+    for(let i=0; i<str.length; i++){
+      const ch = str.charCodeAt(i);
+      h1 = Math.imul(h1 ^ ch, 2654435761);
+      h2 = Math.imul(h2 ^ ch, 1597334677);
+    }
+    h1 = Math.imul(h1 ^ (h1>>>16), 2246822507); h1 ^= Math.imul(h2 ^ (h2>>>13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2>>>16), 2246822507); h2 ^= Math.imul(h1 ^ (h1>>>13), 3266489909);
+    return 4294967296 * (2097151 & h2) + (h1>>>0);
+  }
+
+  function mulberry32(a){
+    return function(){
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      let t = Math.imul(a ^ a>>>15, 1 | a);
+      t = t + Math.imul(t ^ t>>>7, 61 | t) ^ t;
+      return ((t ^ t>>>14) >>> 0) / 4294967296;
+    };
+  }
+
+  function makeRng(diffKey){
+    const seed = cyrb53(todayKey() + ":" + diffKey, 0) % 2147483647;
+    return mulberry32(seed);
+  }
+
+  // ---------- ship placement ----------
+  function cellsFor(orientation, r0, c0, length){
+    const cells = [];
+    for(let i=0;i<length;i++){
+      let r=r0, c=c0;
+      if(orientation === "H") c = c0 + i;
+      else if(orientation === "V") r = r0 + i;
+      else if(orientation === "D1"){ r = r0 + i; c = c0 + i; }
+      else if(orientation === "D2"){ r = r0 + i; c = c0 - i; }
+      cells.push([r,c]);
+    }
+    return cells;
+  }
+
+  function inBounds(cells, size){
+    return cells.every(([r,c]) => r>=0 && r<size && c>=0 && c<size);
+  }
+
+  function placeShips(size, shipCount, lenMin, lenMax, rng){
+    const forbidden = new Set();
+    const ships = [];
+
+    for(let s=0; s<shipCount; s++){
+      const length = lenMin + Math.floor(rng() * (lenMax - lenMin + 1));
+      let placedCells = null;
+
+      for(let attempt=0; attempt<3000 && !placedCells; attempt++){
+        const orientation = ORIENTATIONS[Math.floor(rng()*ORIENTATIONS.length)];
+        const r0 = Math.floor(rng()*size);
+        const c0 = Math.floor(rng()*size);
+        const cells = cellsFor(orientation, r0, c0, length);
+        if(!inBounds(cells, size)) continue;
+        const ok = cells.every(([r,c]) => !forbidden.has(`${r},${c}`));
+        if(ok) placedCells = cells;
+      }
+
+      // fallback: allow touching other ships if we ran out of room
+      if(!placedCells){
+        const occupiedOnly = new Set(ships.flatMap(sh => sh.cells.map(([r,c])=>`${r},${c}`)));
+        for(let attempt=0; attempt<5000 && !placedCells; attempt++){
+          const orientation = ORIENTATIONS[Math.floor(rng()*ORIENTATIONS.length)];
+          const r0 = Math.floor(rng()*size);
+          const c0 = Math.floor(rng()*size);
+          const cells = cellsFor(orientation, r0, c0, length);
+          if(!inBounds(cells, size)) continue;
+          if(cells.every(([r,c]) => !occupiedOnly.has(`${r},${c}`))) placedCells = cells;
+        }
+      }
+      if(!placedCells) continue; // extremely unlikely
+
+      placedCells.forEach(([r,c]) => {
+        for(let dr=-1; dr<=1; dr++) for(let dc=-1; dc<=1; dc++){
+          forbidden.add(`${r+dr},${c+dc}`);
+        }
+      });
+
+      ships.push({
+        id: s,
+        length,
+        cells: placedCells,
+        cellSet: new Set(placedCells.map(([r,c]) => `${r},${c}`)),
+        hits: new Set(),
+        sunk: false,
+      });
+    }
+    return ships;
+  }
+
+  // ---------- state ----------
+  const gameStates = {};
+
+  function newState(diffKey){
+    const cfg = DIFFICULTIES[diffKey];
+    const rng = makeRng(diffKey);
+    const ships = placeShips(cfg.size, cfg.shipCount, cfg.lenMin, cfg.lenMax, rng);
+    return {
+      diffKey, size: cfg.size, ships,
+      revealed: new Set(),
+      shots: [],
+      attempts: 0,
+      shipsSunk: 0,
+      won: false,
+      officialResult: null,
+      isNewRecord: false,
+    };
+  }
+
+  function resetState(st){
+    st.ships.forEach(sh => { sh.hits = new Set(); sh.sunk = false; });
+    st.revealed = new Set();
+    st.shots = [];
+    st.attempts = 0;
+    st.shipsSunk = 0;
+    st.won = false;
+    st.isNewRecord = false;
+  }
+
+  function colLetter(c){ return String.fromCharCode(65 + c); }
+
+  // ---------- storage ----------
+  async function safeGet(key){
+    if(!window.storage) return null;
+    try{ return await window.storage.get(key); } catch(e){ return null; }
+  }
+  async function safeSet(key, value){
+    if(!window.storage) return;
+    try{ await window.storage.set(key, value, false); } catch(e){ /* ignore */ }
+  }
+
+  async function loadOfficialResult(diffKey){
+    const key = `bs:${todayKey()}:${diffKey}`;
+    const res = await safeGet(key);
+    if(res){
+      try{ return JSON.parse(res.value); } catch(e){ return null; }
+    }
+    return null;
+  }
+
+  async function saveOfficialResult(diffKey, attempts, totalCells){
+    const key = `bs:${todayKey()}:${diffKey}`;
+    await safeSet(key, JSON.stringify({ attempts, totalCells, date: todayKey() }));
+  }
+
+  // ---------- rendering ----------
+  let currentDiff = "facil";
+  let rowLabelEls = [];
+  let colLabelEls = [];
+
+  const chartEl = document.getElementById("chart");
+  const tabsEl = document.getElementById("tabs");
+  const statusEl = document.getElementById("log-status");
+  const shipsEl = document.getElementById("log-ships");
+  const logListEl = document.getElementById("log-list");
+  const resetBtn = document.getElementById("reset-btn");
+  const dateEl = document.getElementById("today-date");
+  const overlay = document.getElementById("overlay");
+  const modalTitle = document.getElementById("modal-title");
+  const modalDetail = document.getElementById("modal-detail");
+  const modalNote = document.getElementById("modal-note");
+  const modalClose = document.getElementById("modal-close");
+
+  function renderTabs(){
+    tabsEl.innerHTML = "";
+    DIFF_ORDER.forEach(key => {
+      const cfg = DIFFICULTIES[key];
+      const btn = document.createElement("button");
+      btn.className = "tab" + (key === currentDiff ? " active" : "");
+      btn.innerHTML = `${cfg.label}<span class="sub">${cfg.size}×${cfg.size} · ${cfg.shipCount} ${cfg.shipCount>1?"buques":"buque"}</span>`;
+      btn.addEventListener("click", () => switchDifficulty(key));
+      tabsEl.appendChild(btn);
+    });
+  }
+
+  function renderBoard(){
+    const st = gameStates[currentDiff];
+    const size = st.size;
+    chartEl.innerHTML = "";
+    chartEl.classList.toggle("locked", st.won);
+    chartEl.style.gridTemplateColumns = `2.4em repeat(${size}, 1fr)`;
+    chartEl.style.gridTemplateRows = `2.4em repeat(${size}, 1fr)`;
+    rowLabelEls = []; colLabelEls = [];
+
+    // corner
+    const corner = document.createElement("div");
+    corner.className = "label-cell";
+    chartEl.appendChild(corner);
+
+    // column headers
+    for(let c=0;c<size;c++){
+      const lab = document.createElement("div");
+      lab.className = "label-cell";
+      lab.textContent = colLetter(c);
+      chartEl.appendChild(lab);
+      colLabelEls.push(lab);
+    }
+
+    for(let r=0;r<size;r++){
+      const rowLab = document.createElement("div");
+      rowLab.className = "label-cell";
+      rowLab.textContent = String(r+1);
+      chartEl.appendChild(rowLab);
+      rowLabelEls.push(rowLab);
+
+      for(let c=0;c<size;c++){
+        const key = `${r},${c}`;
+        const cell = document.createElement("div");
+        cell.className = "cell";
+        cell.dataset.r = r; cell.dataset.c = c;
+
+        if(st.revealed.has(key)){
+          cell.classList.add("revealed");
+          const ship = st.ships.find(sh => sh.cellSet.has(key));
+          if(ship){
+            cell.classList.add(ship.sunk ? "sunk" : "hit");
+          } else {
+            cell.classList.add("miss");
+          }
+        }
+
+        cell.addEventListener("click", () => handleCellClick(r,c));
+        cell.addEventListener("mouseenter", () => {
+          rowLabelEls[r].classList.add("active");
+          colLabelEls[c].classList.add("active");
+        });
+        cell.addEventListener("mouseleave", () => {
+          rowLabelEls[r].classList.remove("active");
+          colLabelEls[c].classList.remove("active");
+        });
+
+        chartEl.appendChild(cell);
+      }
+    }
+  }
+
+  function renderSidebar(){
+    const st = gameStates[currentDiff];
+    const total = st.ships.length;
+
+    let statusHtml = `Disparos: <strong>${st.attempts}</strong><br>Buques hundidos: <strong>${st.shipsSunk}/${total}</strong>`;
+    if(st.officialResult){
+      statusHtml += `<span class="record">Resultado oficial de hoy: ${st.officialResult.attempts} intentos</span>`;
+    }
+    statusEl.innerHTML = statusHtml;
+
+    shipsEl.innerHTML = "";
+    st.ships
+      .slice()
+      .sort((a,b) => b.length - a.length)
+      .forEach(sh => {
+        const li = document.createElement("li");
+        li.innerHTML = `<span>Buque de ${sh.length}</span><span class="st ${sh.sunk ? "sunk" : "pend"}">${sh.sunk ? "hundido" : "en el mar"}</span>`;
+        shipsEl.appendChild(li);
+      });
+
+    logListEl.innerHTML = "";
+    if(st.shots.length === 0){
+      const li = document.createElement("li");
+      li.className = "empty";
+      li.textContent = "Todavía no disparaste.";
+      logListEl.appendChild(li);
+    } else {
+      st.shots.forEach(shot => {
+        const li = document.createElement("li");
+        li.className = shot.result;
+        li.innerHTML = `<span>${shot.coord}</span><span>${shot.result === "hit" ? "impacto" : "agua"}</span>`;
+        logListEl.appendChild(li);
+      });
+    }
+  }
+
+  function handleCellClick(r, c){
+    const st = gameStates[currentDiff];
+    if(st.won) return;
+    const key = `${r},${c}`;
+    if(st.revealed.has(key)) return;
+
+    st.revealed.add(key);
+    st.attempts++;
+    const coord = colLetter(c) + (r+1);
+    const ship = st.ships.find(sh => sh.cellSet.has(key));
+
+    if(ship){
+      ship.hits.add(key);
+      st.shots.push({ coord, result: "hit" });
+      if(ship.hits.size === ship.cells.length){
+        ship.sunk = true;
+        st.shipsSunk++;
+      }
+    } else {
+      st.shots.push({ coord, result: "miss" });
+    }
+
+    if(st.ships.every(sh => sh.sunk)){
+      st.won = true;
+      finishGame(st);
+    }
+
+    renderBoard();
+    renderSidebar();
+  }
+
+  async function finishGame(st){
+    const totalCells = st.ships.reduce((a,sh) => a + sh.length, 0);
+    if(!st.officialResult){
+      await saveOfficialResult(st.diffKey, st.attempts, totalCells);
+      st.officialResult = { attempts: st.attempts, totalCells };
+      st.isNewRecord = true;
+    }
+    openModal(st, totalCells);
+  }
+
+  function openModal(st, totalCells){
+    const cfg = DIFFICULTIES[st.diffKey];
+    modalTitle.textContent = `¡Escuadra hundida en ${st.attempts} intentos!`;
+    const accuracy = Math.min(100, Math.round((totalCells / st.attempts) * 100));
+    modalDetail.textContent = `Nivel ${cfg.label} · grilla de ${cfg.size}×${cfg.size} · ${st.ships.length} ${st.ships.length>1 ? "buques" : "buque"} · precisión ${accuracy}%.`;
+    modalNote.textContent = st.isNewRecord
+      ? "Guardado como tu resultado oficial de hoy para este nivel."
+      : `Esta fue una partida de práctica. Tu resultado oficial de hoy sigue siendo ${st.officialResult.attempts} intentos.`;
+    overlay.hidden = false;
+  }
+
+  modalClose.addEventListener("click", () => { overlay.hidden = true; });
+  overlay.addEventListener("click", (e) => { if(e.target === overlay) overlay.hidden = true; });
+
+  resetBtn.addEventListener("click", () => {
+    const st = gameStates[currentDiff];
+    resetState(st);
+    overlay.hidden = true;
+    renderBoard();
+    renderSidebar();
+  });
+
+  async function switchDifficulty(key){
+    currentDiff = key;
+    if(!gameStates[key]){
+      gameStates[key] = newState(key);
+      gameStates[key].officialResult = await loadOfficialResult(key);
+    }
+    renderTabs();
+    renderBoard();
+    renderSidebar();
+  }
+
+  async function init(){
+    dateEl.textContent = new Date().toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" });
+    gameStates.facil = newState("facil");
+    gameStates.facil.officialResult = await loadOfficialResult("facil");
+    renderTabs();
+    renderBoard();
+    renderSidebar();
+  }
+
+  init();
+})();
+</script>
+
+</body>
+</html>

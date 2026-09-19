@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Libertadores — arma, tira, sos campeón</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app" id="app"></div>
+
+<script src="teams.js"></script>
+<script>
+
+/* ============================================================
+   FORMACIONES Y ESTILOS
+   ============================================================ */
+const FORMATIONS = {
+ "4-3-3": {DEF:4,MED:3,DEL:3, label:"4-3-3", desc:"Clásico y equilibrado"},
+ "4-4-2": {DEF:4,MED:4,DEL:2, label:"4-4-2", desc:"Sólido, dos puntas"},
+ "3-5-2": {DEF:3,MED:5,DEL:2, label:"3-5-2", desc:"Domina el medio"},
+ "5-3-2": {DEF:5,MED:3,DEL:2, label:"5-3-2", desc:"Muy defensivo"},
+ "4-2-3-1": {DEF:4,MED:5,DEL:1, label:"4-2-3-1", desc:"Un 9 y enganches"},
+ "3-4-3": {DEF:3,MED:4,DEL:3, label:"3-4-3", desc:"Todo al ataque"},
+};
+const STYLES = {
+ ofensivo:{label:"Ofensivo", atk:6, def:-6, desc:"Más goles a favor y en contra"},
+ equilibrado:{label:"Equilibrado", atk:0, def:0, desc:"Sin sesgo"},
+ defensivo:{label:"Defensivo", atk:-6, def:6, desc:"Menos goles en total"},
+};
+const DIFFICULTIES = {
+ normal:{label:"Normal", desc:"Ves la fuerza de cada jugador", blind:false},
+ almanaque:{label:"Almanaque", desc:"Armás a ciegas: solo nombre y puesto", blind:true},
+};
+
+/* ============================================================
+   ESTADO DEL JUEGO
+   ============================================================ */
+let state = null;
+function freshState(){
+  return {
+    screen:"setup",
+    teamName:"",
+    formation:"4-3-3",
+    style:"equilibrado",
+    difficulty:"normal",
+    usedTeamIds:[],
+    reveal:null, // current rolled team {team,...}
+    selectedPlayer:null, // player chosen from the current reveal, awaiting a slot
+    rerollsLeft:3, // "volver a tirar" sin elegir jugador: 3 por partida
+    slots:[], // built on start draft: {key, bucket, index, player:null}
+    // simulation
+    sim:null,
+  };
+}
+state = freshState();
+
+/* ============================================================
+   HELPERS
+   ============================================================ */
+function rnd(a,b){return Math.random()*(b-a)+a;}
+function pick(arr){return arr[Math.floor(Math.random()*arr.length)];}
+function poisson(lambda){
+  const L = Math.exp(-lambda);
+  let k=0, p=1;
+  do{ k++; p*= Math.random(); } while(p>L);
+  return k-1;
+}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+
+function buildSlots(formationKey){
+  const f = FORMATIONS[formationKey];
+  const slots = [];
+  slots.push({key:"POR-0", bucket:"POR", player:null});
+  for(let i=0;i<f.DEF;i++) slots.push({key:"DEF-"+i, bucket:"DEF", player:null});
+  for(let i=0;i<f.MED;i++) slots.push({key:"MED-"+i, bucket:"MED", player:null});
+  for(let i=0;i<f.DEL;i++) slots.push({key:"DEL-"+i, bucket:"DEL", player:null});
+  return slots;
+}
+
+function slotCoords(bucket, idx, countInBucket){
+  // returns {top left} in %
+  const spread = (idx+1)/(countInBucket+1)*100;
+  const rows = {POR:92, DEF:71, MED:47, DEL:20};
+  // stagger midfield/defense rows a touch if many players
+  return {top:rows[bucket], left:spread};
+}
+
+function filledCount(){ return state.slots.filter(s=>s.player).length; }
+function totalSlots(){ return state.slots.length; }
+
+function squadStrength(players, formationKey, styleKey){
+  const f = FORMATIONS[formationKey];
+  const st = STYLES[styleKey];
+  const avg = players.reduce((s,p)=>s+p.ovr,0)/players.length;
+  const delCount = players.filter(p=>p.pos==="DEL").length;
+  const defCount = players.filter(p=>p.pos==="DEF").length;
+  let attack = avg + (delCount-3)*1.4 + st.atk;
+  let defense = avg + (defCount-4)*1.4 + st.def;
+  return {attack:clamp(attack,40,99), defense:clamp(defense,40,99), avg};
+}
+
+function ratingFor(teamData){
+  // used for AI rivals straight from real dataset, "equilibrado" baseline
+  const avg = teamData.players.reduce((s,p)=>s+p.ovr,0)/teamData.players.length;
+  const delCount = teamData.players.filter(p=>p.pos==="DEL").length;
+  const defCount = teamData.players.filter(p=>p.pos==="DEF").length;
+  return {
+    attack: clamp(avg + (delCount-3)*1.4, 40, 99),
+    defense: clamp(avg + (defCount-4)*1.4, 40, 99),
+    avg
+  };
+}
+
+function simulateGoals(attack, defense){
+  let lambda = 1.35 * (attack/defense);
+  lambda = clamp(lambda, 0.15, 4.2);
+  return poisson(lambda);
+}
+
+function randomMinutes(n, max){
+  const mins = [];
+  for(let i=0;i<n;i++) mins.push(Math.floor(rnd(1,max)));
+  return mins.sort((a,b)=>a-b);
+}
+
+function scorerFor(players){
+  const weighted = [];
+  players.forEach(p=>{
+    let w = p.pos==="DEL"?4:p.pos==="MED"?2:p.pos==="DEF"?1:0;
+    for(let i=0;i<w;i++) weighted.push(p);
+  });
+  if(!weighted.length) return players[0];
+  return pick(weighted);
+}
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+const app = document.getElementById("app");
+
+function render(){
+  if(state.screen==="setup") renderSetup();
+  else if(state.screen==="draft") renderDraft();
+  else if(state.screen==="sim") renderSim();
+  else if(state.screen==="summary") renderSummary();
+}
+
+function topbar(subtitle){
+  return `<div class="topbar">
+    <div class="brand"><span class="ball">🏆</span><span class="name">LIBERTADORES</span></div>
+    ${subtitle?`<div class="scorebug">${subtitle}</div>`:""}
+  </div>`;
+}
+
+function renderSetup(){
+  app.innerHTML = `
+  ${topbar()}
+  <div class="screen">
+    <div class="hero">
+      <div class="kicker">Copa de campeones · 1960—2025</div>
+      <h1>Tirá el dado.<br>Armá tu <span>Libertadores</span><br>de ensueño.</h1>
+      <p>Sorteás planteles de los 66 campeones reales de la Copa Libertadores, armás tu XI cruzando generaciones que nunca compartieron cancha, y simulás el torneo. ¿Tu equipo hace el 7 a 0?</p>
+    </div>
+
+    <div class="card">
+      <h3>Nombre de tu equipo</h3>
+      <input class="nameinput" id="teamNameInput" placeholder="Ej: Los Invencibles" maxlength="24" value="${state.teamName}">
+    </div>
+
+    <div class="card">
+      <h3>Formación</h3>
+      <div class="opt-grid three" id="formGrid">
+        ${Object.entries(FORMATIONS).map(([k,f])=>`
+          <div class="opt ${state.formation===k?'active':''}" data-formation="${k}">
+            ${f.label}<small>${f.desc}</small>
+          </div>`).join("")}
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Estilo</h3>
+      <div class="opt-grid three" id="styleGrid">
+        ${Object.entries(STYLES).map(([k,s])=>`
+          <div class="opt ${state.style===k?'active':''}" data-style="${k}">
+            ${s.label}<small>${s.desc}</small>
+          </div>`).join("")}
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Dificultad</h3>
+      <div class="opt-grid" id="diffGrid">
+        ${Object.entries(DIFFICULTIES).map(([k,d])=>`
+          <div class="opt ${state.difficulty===k?'active':''}" data-diff="${k}">
+            ${d.label}<small>${d.desc}</small>
+          </div>`).join("")}
+      </div>
+    </div>
+
+    <button class="btn block" id="startBtn">Tirar los dados →</button>
+    <div class="footer-note">Datos curados a partir de fuentes históricas públicas (Wikipedia/RSSSF y archivos de prensa). Si algún jugador o puesto no coincide con lo que recordás, avisame y lo corrijo en la próxima versión.</div>
+  </div>`;
+
+  document.getElementById("teamNameInput").oninput = e=>{state.teamName = e.target.value;};
+  document.querySelectorAll("[data-formation]").forEach(el=>el.onclick=()=>{state.formation=el.dataset.formation; render();});
+  document.querySelectorAll("[data-style]").forEach(el=>el.onclick=()=>{state.style=el.dataset.style; render();});
+  document.querySelectorAll("[data-diff]").forEach(el=>el.onclick=()=>{state.difficulty=el.dataset.diff; render();});
+  document.getElementById("startBtn").onclick = ()=>{
+    state.slots = buildSlots(state.formation);
+    state.usedTeamIds = [];
+    state.reveal = null;
+    state.selectedPlayer = null;
+    state.rerollsLeft = 3;
+    state.screen = "draft";
+    render();
+  };
+}
+
+function renderDraft(){
+  const f = FORMATIONS[state.formation];
+  const bucketCounts = {POR:1, DEF:f.DEF, MED:f.MED, DEL:f.DEL};
+  const bucketIdxTrack = {POR:0,DEF:0,MED:0,DEL:0};
+
+  const pitchSlots = state.slots.map(s=>{
+    const idx = bucketIdxTrack[s.bucket]++;
+    const coords = slotCoords(s.bucket, idx, bucketCounts[s.bucket]);
+    return {...s, top:coords.top, left:coords.left};
+  });
+
+  const pct = Math.round(filledCount()/totalSlots()*100);
+  const blind = DIFFICULTIES[state.difficulty].blind;
+  const sel = state.selectedPlayer; // {player, teamData} or null
+  const waitingForSlot = !!sel;
+
+  let hint;
+  if(!state.reveal) hint = "Tirá el dado para sortear un plantel campeón";
+  else if(!sel) hint = "Elegí un jugador de este plantel";
+  else hint = `Elegiste a ${sel.player.name} (${sel.player.pos}) — tocá un puesto de ${sel.player.pos} para ubicarlo`;
+
+  app.innerHTML = `
+  ${topbar(FORMATIONS[state.formation].label)}
+  <div class="screen">
+    <div class="progressbar">
+      <div class="track"><div class="fill" style="width:${pct}%"></div></div>
+      <div class="count">${filledCount()}/${totalSlots()}</div>
+    </div>
+
+    <div class="pitch" id="pitch">
+      ${pitchSlots.map(s=>{
+        const isTarget = waitingForSlot && !s.player && s.bucket===sel.player.pos;
+        const isDimmed = waitingForSlot && !isTarget;
+        return `
+        <div class="slot ${s.player?'filled':''} ${isTarget?'selected':''} ${isDimmed?'dimmed-slot':''}" style="top:${s.top}%;left:${s.left}%" data-slot="${s.key}">
+          ${s.player?`<div class="xbtn" data-remove="${s.key}">✕</div>`:""}
+          <div class="dot">${s.player? (s.player.n) : s.bucket}</div>
+          <div class="label">${s.player? s.player.name.split(' ').slice(-1)[0] : s.bucket}</div>
+          ${s.player && !blind ? `<div class="sub">${s.player.ovr} OVR</div>`:""}
+        </div>`;
+      }).join("")}
+    </div>
+
+    ${filledCount()<totalSlots() ? `
+      <div class="roll-zone">
+        ${!state.reveal ? `<button class="dice" id="diceBtn">🎲</button>` : ""}
+        <div class="hint">${hint}</div>
+        ${state.reveal ? `<button class="btn secondary small" id="rerollBtn" ${state.rerollsLeft<=0?'disabled':''}>Volver a tirar (quedan ${state.rerollsLeft})</button>` : ""}
+      </div>
+    ` : `
+      <div class="card" style="text-align:center;">
+        <h3 style="margin-bottom:4px;">¡Equipo completo!</h3>
+        <p style="color:var(--cream-dim);font-size:14px;margin-bottom:14px;">Revisá tu XI y arrancá la Copa.</p>
+        <button class="btn block" id="goSim">Ir a la Copa →</button>
+      </div>
+    `}
+
+    ${state.reveal ? renderRevealCard(blind) : ""}
+
+    <div class="footer-note">Cuando sale un plantel, elegís un solo jugador y después el puesto donde va (solo se puede ubicar en su posición real). Tenés 3 "volver a tirar" por partida para descartar un plantel sin elegir.</div>
+  </div>`;
+
+  document.querySelectorAll("[data-slot]").forEach(el=>{
+    el.onclick=(e)=>{
+      if(e.target.dataset.remove) return;
+      const key = el.dataset.slot;
+      const s = state.slots.find(x=>x.key===key);
+      if(s.player) return; // se libera con la ✕
+      if(!waitingForSlot) return; // primero hay que elegir un jugador
+      if(s.bucket !== sel.player.pos) return; // posición incompatible
+      s.player = {...sel.player, _teamId:sel.teamData.id, _team:sel.teamData.team, _year:sel.teamData.year};
+      state.selectedPlayer = null;
+      state.reveal = null; // el plantel se descarta tras usar un jugador
+      render();
+    };
+  });
+  document.querySelectorAll("[data-remove]").forEach(el=>{
+    el.onclick=(e)=>{
+      e.stopPropagation();
+      const key = el.dataset.remove;
+      const s = state.slots.find(x=>x.key===key);
+      s.player = null;
+      render();
+    };
+  });
+  const diceBtn = document.getElementById("diceBtn");
+  if(diceBtn) diceBtn.onclick = ()=>drawTeam(false);
+  const rerollBtn = document.getElementById("rerollBtn");
+  if(rerollBtn) rerollBtn.onclick = ()=>{
+    if(state.rerollsLeft<=0) return;
+    state.rerollsLeft--;
+    drawTeam(true);
+  };
+  const goSim = document.getElementById("goSim");
+  if(goSim) goSim.onclick = ()=>{ startSimulation(); };
+
+  bindRevealHandlers();
+}
+
+function renderRevealCard(blind){
+  const t = state.reveal;
+  const sel = state.selectedPlayer;
+  return `
+  <div class="reveal-card" style="border-color:${t.c1}55;">
+    <div class="reveal-head" style="background:linear-gradient(120deg, ${t.c1}33, transparent); border-bottom:1px solid ${t.c1}55;">
+      <div>
+        <div class="t1">${t.flag} ${t.team}</div>
+        <div class="t2" style="color:${t.c1}">Libertadores ${t.year}</div>
+      </div>
+      <div class="tag">${t.country}</div>
+    </div>
+    <div class="reveal-body">
+      <div class="plist">
+        ${t.players.map(p=>{
+          const hasSlot = state.slots.some(s=>!s.player && s.bucket===p.pos);
+          const isSelected = sel && sel.player.n===p.n;
+          const usable = hasSlot; // siempre se puede elegir mientras haya puesto libre de su posición
+          return `
+          <div class="prow ${usable?'usable':'disabled'} ${isSelected?'picked':''}" data-pick="${p.n}">
+            <div class="num">${p.n}</div>
+            <div class="pname">${p.name}${p.leg?'<span class="star">★</span>':''}</div>
+            <div class="ppos">${p.pos}</div>
+            ${blind? "" : `<div class="povr">${p.ovr}</div>`}
+          </div>`;
+        }).join("")}
+      </div>
+    </div>
+  </div>`;
+}
+
+function bindRevealHandlers(){
+  document.querySelectorAll("[data-pick]").forEach(el=>{
+    el.onclick = ()=>{
+      if(!el.classList.contains("usable")) return;
+      const num = parseInt(el.dataset.pick,10);
+      const t = state.reveal;
+      const player = t.players.find(p=>p.n===num);
+      // toggle selection: click again to deselect, click another to switch
+      if(state.selectedPlayer && state.selectedPlayer.player.n===num){
+        state.selectedPlayer = null;
+      } else {
+        state.selectedPlayer = {player, teamData:t};
+      }
+      render();
+    };
+  });
+}
+
+function drawTeam(isReroll){
+  const diceEl = document.getElementById("diceBtn");
+  if(diceEl){ diceEl.classList.add("rolling"); }
+  state.selectedPlayer = null;
+  setTimeout(()=>{
+    const remaining = TEAMS.filter(t=>!state.usedTeamIds.includes(t.id));
+    const pool = remaining.length? remaining : TEAMS;
+    const t = pick(pool);
+    state.usedTeamIds.push(t.id);
+    if(state.usedTeamIds.length > TEAMS.length) state.usedTeamIds = [t.id];
+    state.reveal = t;
+    render();
+  }, isReroll? 0 : 480);
+}
+
+/* ============================================================
+   SIMULACIÓN
+   ============================================================ */
+function startSimulation(){
+  const myPlayers = state.slots.map(s=>s.player);
+  const my = squadStrength(myPlayers, state.formation, state.style);
+
+  function drawRival(exclude){
+    const pool = TEAMS.filter(t=>!exclude.includes(t.id));
+    const t = pick(pool.length?pool:TEAMS);
+    return {teamData:t, rating:ratingFor(t)};
+  }
+
+  const excludeIds = [];
+  const rivals = [];
+  for(let i=0;i<3;i++){
+    const r = drawRival(excludeIds);
+    excludeIds.push(r.teamData.id);
+    rivals.push(r);
+  }
+
+  state.sim = {
+    phase:"grupos",
+    myPlayers, my,
+    group:{rivals, matches:[], matchIndex:0, standings:null, advanced:null, done:false},
+    knockout:{rounds:["Octavos de Final","Cuartos de Final","Semifinal","Final"], idx:0, current:null, eliminated:false, champion:false},
+    totals:{w:0,d:0,l:0,gf:0,ga:0,played:0},
+    excludeIds,
+    log:[],
+    view:"pre", // pre | playing | result | table
+  };
+  state.screen = "sim";
+  render();
+}
+
+function playMatch(attack, defense, atkStyleBoost, defStyleBoost){
+  const a = simulateGoals(attack, defense);
+  const b = simulateGoals(defense, attack);
+  return {a,b};
+}
+
+function simulateGroupAllMatches(sim){
+  const r = sim.group.rivals;
+  const my = sim.my;
+  const matches = [];
+  // my matches vs each rival
+  r.forEach(rv=>{
+    const gf = simulateGoals(my.attack, rv.rating.defense);
+    const ga = simulateGoals(rv.rating.attack, my.defense);
+    matches.push({home:"YOU", away:rv.teamData.id, gf, ga, isMine:true, rival:rv});
+  });
+  // rivals among themselves (for standings realism)
+  for(let i=0;i<r.length;i++){
+    for(let j=i+1;j<r.length;j++){
+      const g1 = simulateGoals(r[i].rating.attack, r[j].rating.defense);
+      const g2 = simulateGoals(r[j].rating.attack, r[i].rating.defense);
+      matches.push({home:r[i].teamData.id, away:r[j].teamData.id, gf:g1, ga:g2, isMine:false});
+    }
+  }
+  return matches;
+}
+
+function computeStandings(sim){
+  const table = {};
+  const you = "YOU";
+  table[you] = {id:you, name:state.teamName||"Tu equipo", pts:0, gf:0, ga:0, played:0, isYou:true};
+  sim.group.rivals.forEach(rv=>{ table[rv.teamData.id] = {id:rv.teamData.id, name:rv.teamData.team+" "+rv.teamData.year, pts:0, gf:0, ga:0, played:0}; });
+
+  sim.group.allMatches.forEach(m=>{
+    const homeId = m.isMine? you : m.home;
+    const awayId = m.away;
+    const home = table[homeId], away = table[awayId];
+    home.played++; away.played++;
+    home.gf+=m.gf; home.ga+=m.ga;
+    away.gf+=m.ga; away.ga+=m.gf;
+    if(m.gf>m.ga){home.pts+=3;} else if(m.gf<m.ga){away.pts+=3;} else {home.pts+=1; away.pts+=1;}
+  });
+  const arr = Object.values(table).sort((x,y)=> (y.pts-x.pts) || ((y.gf-y.ga)-(x.gf-x.ga)) || (y.gf-x.gf));
+  return arr;
+}
+
+function renderSim(){
+  const sim = state.sim;
+  app.innerHTML = `${topbar("Copa Libertadores")}<div class="screen" id="simRoot"></div>`;
+  const root = document.getElementById("simRoot");
+
+  if(sim.phase==="grupos") renderGroupPhase(root, sim);
+  else if(sim.phase==="knockout") renderKnockoutPhase(root, sim);
+  else if(sim.phase==="ended") { state.screen="summary"; render(); }
+}
+
+function renderGroupPhase(root, sim){
+  const g = sim.group;
+  if(!g.allMatches){
+    g.allMatches = simulateGroupAllMatches(sim);
+    g.myOrder = g.allMatches.filter(m=>m.isMine);
+  }
+
+  if(g.matchIndex < g.myOrder.length){
+    const m = g.myOrder[g.matchIndex];
+    const rv = m.rival.teamData;
+    const events = [];
+    randomMinutes(m.gf, 90).forEach(min=>events.push({min, side:"you", who:scorerFor(sim.myPlayers.filter(p=>p.pos!=="POR")).name}));
+    randomMinutes(m.ga, 90).forEach(min=>events.push({min, side:"riv", who:scorerFor(rv.players.filter(p=>p.pos!=="POR")).name}));
+    events.sort((a,b)=>a.min-b.min);
+
+    root.innerHTML = `
+    <div class="matchcard">
+      <div class="phase">Fase de grupos · Partido ${g.matchIndex+1}/3</div>
+      <div class="scoreline">
+        <div class="side"><div class="nm">${state.teamName||"Tu equipo"}</div><div class="yr">${FORMATIONS[state.formation].label}</div></div>
+        <div class="score"><span>${m.gf}</span><span>–</span><span>${m.ga}</span></div>
+        <div class="side"><div class="nm">${rv.flag} ${rv.team}</div><div class="yr">${rv.year}</div></div>
+      </div>
+      <div class="events">
+        ${events.length? events.map(e=>`<div class="event ${e.side==='you'?'you':''}"><span class="min">${e.min}'</span> ⚽ ${e.who} ${e.side==='you'?'('+((state.teamName)||'tu equipo')+')':'('+rv.team+')'}</div>`).join("") : `<div class="event">Partido sin goles.</div>`}
+      </div>
+      <div class="result-pill ${m.gf>m.ga?'W':m.gf<m.ga?'L':'D'}">${m.gf>m.ga?'GANASTE':m.gf<m.ga?'PERDISTE':'EMPATE'}</div>
+    </div>
+    <button class="btn block" id="nextMatch">Siguiente →</button>
+    `;
+    document.getElementById("nextMatch").onclick = ()=>{
+      sim.totals.played++;
+      sim.totals.gf+=m.gf; sim.totals.ga+=m.ga;
+      if(m.gf>m.ga) sim.totals.w++; else if(m.gf<m.ga) sim.totals.l++; else sim.totals.d++;
+      g.matchIndex++;
+      render();
+    };
+    return;
+  }
+
+  // group done, show table
+  const standings = computeStandings(sim);
+  const youIdx = standings.findIndex(s=>s.isYou);
+  const advanced = youIdx < 2;
+  root.innerHTML = `
+  <div class="matchcard">
+    <div class="phase">Tabla de posiciones — Fase de grupos</div>
+    <div class="table-wrap">
+      <table class="standings">
+        <thead><tr><th style="text-align:left">Equipo</th><th>Pts</th><th>GF</th><th>GC</th></tr></thead>
+        <tbody>
+          ${standings.map(s=>`<tr class="${s.isYou?'you':''}"><td class="team">${s.isYou?'⭐ ':''}${s.name}</td><td>${s.pts}</td><td>${s.gf}</td><td>${s.ga}</td></tr>`).join("")}
+        </tbody>
+      </table>
+    </div>
+    <div class="result-pill ${advanced?'W':'L'}">${advanced? "CLASIFICASTE A OCTAVOS":"ELIMINADO EN GRUPOS"}</div>
+  </div>
+  <button class="btn block" id="contBtn">${advanced? "Continuar a Octavos →":"Ver resumen final →"}</button>
+  `;
+  document.getElementById("contBtn").onclick = ()=>{
+    if(advanced){
+      sim.phase="knockout";
+    } else {
+      sim.phase="ended";
+    }
+    render();
+  };
+}
+
+function renderKnockoutPhase(root, sim){
+  const ko = sim.knockout;
+  if(ko.eliminated || ko.champion){ sim.phase="ended"; render(); return; }
+
+  if(!ko.current){
+    const pool = TEAMS.filter(t=>!sim.excludeIds.includes(t.id));
+    const t = pick(pool.length?pool:TEAMS);
+    sim.excludeIds.push(t.id);
+    ko.current = {teamData:t, rating:ratingFor(t)};
+  }
+  const rv = ko.current.teamData;
+  const my = sim.my;
+  const gf = simulateGoals(my.attack, ko.current.rating.defense);
+  const ga = simulateGoals(ko.current.rating.attack, my.defense);
+  const events = [];
+  randomMinutes(gf,90).forEach(min=>events.push({min, side:"you", who:scorerFor(sim.myPlayers.filter(p=>p.pos!=="POR")).name}));
+  randomMinutes(ga,90).forEach(min=>events.push({min, side:"riv", who:scorerFor(rv.players.filter(p=>p.pos!=="POR")).name}));
+  events.sort((a,b)=>a.min-b.min);
+
+  let penalties = null;
+  let wonMatch = gf>ga;
+  if(gf===ga){
+    const pWinProb = clamp(0.5 + (my.attack-ko.current.rating.attack)/200, 0.25, 0.75);
+    const iWin = Math.random() < pWinProb;
+    penalties = {youScore: iWin? rnd(4,5)|0 : rnd(2,4)|0, rivScore: iWin? rnd(2,4)|0 : rnd(4,5)|0, iWin};
+    wonMatch = iWin;
+  }
+
+  root.innerHTML = `
+  <div class="matchcard">
+    <div class="phase">${ko.rounds[ko.idx]}</div>
+    <div class="scoreline">
+      <div class="side"><div class="nm">${state.teamName||"Tu equipo"}</div><div class="yr">${FORMATIONS[state.formation].label}</div></div>
+      <div class="score"><span>${gf}</span><span>–</span><span>${ga}</span></div>
+      <div class="side"><div class="nm">${rv.flag} ${rv.team}</div><div class="yr">${rv.year}</div></div>
+    </div>
+    <div class="events">
+      ${events.length? events.map(e=>`<div class="event ${e.side==='you'?'you':''}"><span class="min">${e.min}'</span> ⚽ ${e.who} ${e.side==='you'?'('+((state.teamName)||'tu equipo')+')':'('+rv.team+')'}</div>`).join("") : `<div class="event">Partido sin goles en los 90'.</div>`}
+      ${penalties? `<div class="event" style="color:var(--gold)"><span class="min">🥅</span> Penales: ${penalties.youScore} - ${penalties.rivScore}</div>`:""}
+    </div>
+    <div class="result-pill ${wonMatch?'W':'L'}">${wonMatch? (ko.rounds[ko.idx]==='Final'?'¡CAMPEÓN!':'AVANZÁS'):'ELIMINADO'}</div>
+  </div>
+  <button class="btn block" id="contBtn">${wonMatch? (ko.rounds[ko.idx]==='Final'?'Ver resumen →':'Siguiente ronda →') : 'Ver resumen final →'}</button>
+  `;
+
+  document.getElementById("contBtn").onclick = ()=>{
+    sim.totals.played++;
+    sim.totals.gf+=gf; sim.totals.ga+=ga;
+    if(wonMatch) sim.totals.w++; else sim.totals.l++;
+    if(!wonMatch){
+      ko.eliminated = true;
+    } else if(ko.rounds[ko.idx]==="Final"){
+      ko.champion = true;
+    } else {
+      ko.idx++;
+      ko.current = null;
+    }
+    render();
+  };
+}
+
+function renderSummary(){
+  const sim = state.sim;
+  const t = sim.totals;
+  const isChampion = sim.knockout.champion;
+  const perfect = isChampion && t.l===0 && t.d===0 && t.ga===0 && t.played===7;
+  let title, sub, trophy;
+  if(perfect){ title="7 A 0 PERFECTO"; sub="Campeón invicto y sin recibir goles. La hazaña máxima."; trophy="🏆"; }
+  else if(isChampion){ title="¡CAMPEÓN!"; sub="Levantaste la Libertadores de los sueños."; trophy="🏆"; }
+  else { title="Quedaste en el camino"; sub="La Copa siempre da revancha. Volvé a tirar los dados."; trophy="⚽"; }
+
+  app.innerHTML = `
+  ${topbar()}
+  <div class="screen">
+    <div class="summary-hero">
+      <div class="trophy">${trophy}</div>
+      <h2>${title}</h2>
+      <p>${state.teamName? '"'+state.teamName+'" · ':''}${sub}</p>
+    </div>
+    <div class="stat-grid">
+      <div class="stat"><b>${t.played}</b><span>Jugados</span></div>
+      <div class="stat"><b>${t.w}</b><span>Ganados</span></div>
+      <div class="stat"><b>${t.gf}</b><span>Goles a favor</span></div>
+      <div class="stat"><b>${t.ga}</b><span>Goles en contra</span></div>
+    </div>
+    <div class="card">
+      <h3>Tu XI</h3>
+      <div class="plist">
+        ${state.slots.map(s=>`
+          <div class="prow">
+            <div class="num">${s.player.n}</div>
+            <div class="pname">${s.player.name}${s.player.leg?'<span class="star">★</span>':''}</div>
+            <div class="ppos">${s.player.pos}</div>
+            <div class="povr">${s.player.ovr}</div>
+          </div>`).join("")}
+      </div>
+    </div>
+    <button class="btn block" id="again">Jugar de nuevo →</button>
+    <div class="footer-note">Libertadores — un juego de fútbol con planteles reales de los 66 campeones de la Copa (1960–2025). Formación, estilo y dificultad elegidos por vos.</div>
+  </div>`;
+
+  document.getElementById("again").onclick = ()=>{
+    const keepName = state.teamName;
+    state = freshState();
+    state.teamName = keepName;
+    render();
+  };
+}
+
+render();
+</script>
+</body>
+</html>

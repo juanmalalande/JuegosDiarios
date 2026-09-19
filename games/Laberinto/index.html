@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Laberinto diario</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #FBFBFD;
+    --surface: #FFFFFF;
+    --ink: #1B1B2A;
+    --ink-soft: #6B6F85;
+    --line: #2B3A8F;
+    --line-faint: #C7CBE8;
+    --accent: #5B4FE8;
+    --accent-soft: #EDEBFC;
+    --success: #12876B;
+    --success-soft: #E3F5EF;
+    --grid-dot: #E6E8F5;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    background-image: radial-gradient(var(--grid-dot) 1px, transparent 1px);
+    background-size: 22px 22px;
+    color: var(--ink);
+    font-family: 'Space Grotesk', sans-serif;
+    min-height: 100%;
+  }
+
+  .page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 28px 16px;
+  }
+
+  .card {
+    width: 100%;
+    max-width: 480px;
+    background: var(--surface);
+    border: 1px solid var(--line-faint);
+    border-radius: 18px;
+    padding: 26px 24px 22px;
+  }
+
+  header { margin-bottom: 18px; }
+
+  .title-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  h1 {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0;
+  }
+
+  .date {
+    font-size: 13px;
+    color: var(--ink-soft);
+    white-space: nowrap;
+  }
+
+  .puzzle-label {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+
+  .segmented {
+    display: inline-flex;
+    background: var(--bg);
+    border: 1px solid var(--line-faint);
+    border-radius: 10px;
+    padding: 3px;
+    gap: 2px;
+  }
+
+  .seg-btn {
+    border: none;
+    background: transparent;
+    color: var(--ink-soft);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 7px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background .15s ease, color .15s ease;
+  }
+
+  .seg-btn.active {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  .actions { display: flex; gap: 8px; }
+
+  .btn-ghost {
+    border: 1px solid var(--line-faint);
+    background: var(--surface);
+    color: var(--ink);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 12px;
+    border-radius: 9px;
+    cursor: pointer;
+    transition: border-color .15s ease, background .15s ease;
+  }
+  .btn-ghost:hover { border-color: var(--accent); background: var(--accent-soft); }
+
+  .btn-primary {
+    border: none;
+    background: var(--accent);
+    color: #fff;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 10px 16px;
+    border-radius: 10px;
+    cursor: pointer;
+  }
+
+  .hint {
+    font-size: 13px;
+    color: var(--ink-soft);
+    margin: 0 0 14px;
+    line-height: 1.4;
+  }
+
+  .maze-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--surface);
+    touch-action: none;
+  }
+
+  .maze-wrap.invalid { animation: shake .28s ease; }
+
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    75% { transform: translateX(4px); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .maze-wrap.invalid { animation: none; }
+    #goalPulse { animation: none !important; }
+  }
+
+  svg { display: block; width: 100%; height: 100%; }
+
+  #goalPulse {
+    animation: pulse 1.6s ease-in-out infinite;
+    transform-origin: center;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: .35; }
+    50% { opacity: .05; }
+  }
+
+  footer.stats {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 18px;
+    gap: 8px;
+  }
+
+  .stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .stat-label {
+    font-size: 11px;
+    color: var(--ink-soft);
+  }
+
+  .stat-value {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(27, 27, 42, 0.45);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 10;
+  }
+  .overlay.open { display: flex; }
+
+  .win-panel {
+    background: var(--surface);
+    border-radius: 16px;
+    padding: 26px 24px;
+    max-width: 320px;
+    width: 100%;
+    text-align: center;
+  }
+
+  .win-panel h2 {
+    margin: 0 0 8px;
+    font-size: 19px;
+  }
+
+  .win-panel p {
+    margin: 0 0 18px;
+    font-size: 14px;
+    color: var(--ink-soft);
+    line-height: 1.5;
+  }
+
+  .win-panel .win-time {
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--success);
+    font-weight: 600;
+  }
+
+  .win-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+  }
+  .win-actions-secondary { margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <div class="card">
+    <header>
+      <div class="title-row">
+        <h1>Laberinto diario</h1>
+        <span class="date" id="dateLabel"></span>
+      </div>
+      <p class="puzzle-label" id="puzzleLabel">Laberinto n.° 1</p>
+    </header>
+
+    <div class="controls">
+      <div class="segmented" role="tablist" aria-label="Dificultad">
+        <button data-level="easy" class="seg-btn active">Fácil</button>
+        <button data-level="medium" class="seg-btn">Medio</button>
+        <button data-level="hard" class="seg-btn">Difícil</button>
+      </div>
+      <div class="actions">
+        <button id="newMazeBtn" class="btn-ghost">Nuevo</button>
+        <button id="resetBtn" class="btn-ghost">Reiniciar</button>
+      </div>
+    </div>
+
+    <p class="hint">Arrastrá con el mouse o el dedo desde el punto violeta hasta el punto verde, sin cruzar las paredes.</p>
+
+    <div class="maze-wrap" id="mazeWrap">
+      <svg id="mazeSvg" viewBox="0 0 100 100"></svg>
+    </div>
+
+    <footer class="stats">
+      <div class="stat">
+        <span class="stat-label">Tiempo</span>
+        <span class="stat-value" id="timerLabel">00:00.0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Movimientos</span>
+        <span class="stat-value" id="movesLabel">0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Mejor (sesión)</span>
+        <span class="stat-value" id="bestLabel">—</span>
+      </div>
+    </footer>
+  </div>
+</div>
+
+<div class="overlay" id="winOverlay">
+  <div class="win-panel">
+    <h2>¡Laberinto resuelto!</h2>
+    <p id="winSummary"></p>
+    <div class="win-actions">
+      <button id="shareBtn" class="btn-primary">Compartir resultado</button>
+    </div>
+    <div class="win-actions win-actions-secondary">
+      <button id="winAgainBtn" class="btn-ghost">Otro laberinto</button>
+      <button id="winCloseBtn" class="btn-ghost">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  const LEVELS = {
+    easy:   { size: 9,  label: 'Fácil',   branch: 0.08 },
+    medium: { size: 14, label: 'Medio',   branch: 0.35 },
+    hard:   { size: 19, label: 'Difícil', branch: 0.65 }
+  };
+  const U = 10; // unit size per cell in viewBox coordinates
+
+  let level = 'easy';
+  let grid = [];
+  let size = LEVELS[level].size;
+  let path = [];
+  let startCell = [0,0];
+  let goalCell = [size-1,size-1];
+  let lastResult = null;
+  let dragging = false;
+  let timerStart = null;
+  let timerRAF = null;
+  let isDaily = true;
+  const sessionBest = { easy: null, medium: null, hard: null };
+
+  const svg = document.getElementById('mazeSvg');
+  const mazeWrap = document.getElementById('mazeWrap');
+  const timerLabel = document.getElementById('timerLabel');
+  const movesLabel = document.getElementById('movesLabel');
+  const bestLabel = document.getElementById('bestLabel');
+  const puzzleLabel = document.getElementById('puzzleLabel');
+  const dateLabel = document.getElementById('dateLabel');
+  const winOverlay = document.getElementById('winOverlay');
+  const winSummary = document.getElementById('winSummary');
+
+  // ---------- seeded RNG ----------
+  function hashSeed(str){
+    let h = 1779033703 ^ str.length;
+    for(let i=0;i<str.length;i++){
+      h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+      h = (h << 13) | (h >>> 19);
+    }
+    return function(){
+      h = Math.imul(h ^ (h >>> 16), 2246822507);
+      h = Math.imul(h ^ (h >>> 13), 3266489909);
+      h ^= h >>> 16;
+      return (h >>> 0) / 4294967296;
+    };
+  }
+
+  function todayStr(){
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+
+  function dayNumber(){
+    const epoch = new Date('2025-01-01T00:00:00Z');
+    const now = new Date();
+    const diff = Math.floor((Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) - epoch.getTime()) / 86400000);
+    return Math.max(1, diff + 1);
+  }
+
+  // ---------- maze generation (growing tree, tunable branchiness) ----------
+  // branchProb = 0   -> behaves like recursive backtracker: long, mostly linear corridors
+  // branchProb = 1   -> behaves like randomized Prim's: many short branches and dead ends
+  function generateMaze(n, rng, branchProb){
+    const cells = Array.from({length:n}, () =>
+      Array.from({length:n}, () => ({top:true,right:true,bottom:true,left:true,visited:false}))
+    );
+    const active = [[0,0]];
+    cells[0][0].visited = true;
+    while(active.length){
+      const idx = rng() < branchProb
+        ? Math.floor(rng() * active.length)  // random pick -> more forks & dead ends
+        : active.length - 1;                 // last pick -> long winding corridors
+      const [r,c] = active[idx];
+      const options = [];
+      if(r>0 && !cells[r-1][c].visited) options.push([r-1,c,'top']);
+      if(r<n-1 && !cells[r+1][c].visited) options.push([r+1,c,'bottom']);
+      if(c>0 && !cells[r][c-1].visited) options.push([r,c-1,'left']);
+      if(c<n-1 && !cells[r][c+1].visited) options.push([r,c+1,'right']);
+      if(options.length === 0){ active.splice(idx,1); continue; }
+      const [nr,nc,dir] = options[Math.floor(rng() * options.length)];
+      if(dir==='top'){ cells[r][c].top=false; cells[nr][nc].bottom=false; }
+      if(dir==='bottom'){ cells[r][c].bottom=false; cells[nr][nc].top=false; }
+      if(dir==='left'){ cells[r][c].left=false; cells[nr][nc].right=false; }
+      if(dir==='right'){ cells[r][c].right=false; cells[nr][nc].left=false; }
+      cells[nr][nc].visited = true;
+      active.push([nr,nc]);
+    }
+    return cells;
+  }
+
+  // BFS from (r0,c0), returns the farthest cell and its distance
+  function bfsFarthest(cells, n, r0, c0){
+    const dist = Array.from({length:n}, () => new Array(n).fill(-1));
+    dist[r0][c0] = 0;
+    const queue = [[r0,c0]];
+    let farthest = [r0,c0], maxD = 0;
+    while(queue.length){
+      const [r,c] = queue.shift();
+      const d = dist[r][c];
+      if(d > maxD){ maxD = d; farthest = [r,c]; }
+      const cell = cells[r][c];
+      if(!cell.top && dist[r-1][c] === -1){ dist[r-1][c] = d+1; queue.push([r-1,c]); }
+      if(!cell.bottom && dist[r+1][c] === -1){ dist[r+1][c] = d+1; queue.push([r+1,c]); }
+      if(!cell.left && dist[r][c-1] === -1){ dist[r][c-1] = d+1; queue.push([r,c-1]); }
+      if(!cell.right && dist[r][c+1] === -1){ dist[r][c+1] = d+1; queue.push([r,c+1]); }
+    }
+    return farthest;
+  }
+
+  // Finds the two cells that are furthest apart in the maze (its "diameter"),
+  // so the true solution path is always long and winds through the maze,
+  // regardless of where that ends up on the grid.
+  function computeEndpoints(cells, n){
+    const a = bfsFarthest(cells, n, 0, 0);
+    const b = bfsFarthest(cells, n, a[0], a[1]);
+    return { start: a, end: b };
+  }
+
+  // ---------- rendering ----------
+  function render(){
+    size = LEVELS[level].size;
+    svg.setAttribute('viewBox', `0 0 ${size*U} ${size*U}`);
+    svg.innerHTML = '';
+
+    const ns = 'http://www.w3.org/2000/svg';
+
+    // wall path (blueprint hairlines)
+    let d = '';
+    for(let r=0;r<size;r++){
+      for(let c=0;c<size;c++){
+        const cell = grid[r][c];
+        const x0 = c*U, y0 = r*U, x1 = x0+U, y1 = y0+U;
+        if(cell.top)    d += `M${x0} ${y0} L${x1} ${y0} `;
+        if(cell.left)   d += `M${x0} ${y0} L${x0} ${y1} `;
+        if(cell.right)  d += `M${x1} ${y0} L${x1} ${y1} `;
+        if(cell.bottom) d += `M${x0} ${y1} L${x1} ${y1} `;
+      }
+    }
+    const wallsPath = document.createElementNS(ns,'path');
+    wallsPath.setAttribute('d', d);
+    wallsPath.setAttribute('stroke', '#2B3A8F');
+    wallsPath.setAttribute('stroke-width', '0.45');
+    wallsPath.setAttribute('stroke-linecap', 'square');
+    wallsPath.setAttribute('fill', 'none');
+    svg.appendChild(wallsPath);
+
+    // goal pulse ring
+    const [goalCx, goalCy] = cellCenter(goalCell[0], goalCell[1]);
+    const pulse = document.createElementNS(ns,'circle');
+    pulse.setAttribute('id','goalPulse');
+    pulse.setAttribute('cx', goalCx);
+    pulse.setAttribute('cy', goalCy);
+    pulse.setAttribute('r', U*0.65);
+    pulse.setAttribute('fill', '#12876B');
+    svg.appendChild(pulse);
+
+    // goal marker
+    const goal = document.createElementNS(ns,'circle');
+    goal.setAttribute('cx', goalCx);
+    goal.setAttribute('cy', goalCy);
+    goal.setAttribute('r', U*0.28);
+    goal.setAttribute('fill', '#12876B');
+    svg.appendChild(goal);
+
+    // start marker
+    const [startCx, startCy] = cellCenter(startCell[0], startCell[1]);
+    const start = document.createElementNS(ns,'circle');
+    start.setAttribute('cx', startCx);
+    start.setAttribute('cy', startCy);
+    start.setAttribute('r', U*0.28);
+    start.setAttribute('fill', '#5B4FE8');
+    svg.appendChild(start);
+
+    // path polyline
+    const poly = document.createElementNS(ns,'polyline');
+    poly.setAttribute('id','pathLine');
+    poly.setAttribute('fill','none');
+    poly.setAttribute('stroke','#5B4FE8');
+    poly.setAttribute('stroke-width', String(U*0.22));
+    poly.setAttribute('stroke-linecap','round');
+    poly.setAttribute('stroke-linejoin','round');
+    svg.appendChild(poly);
+
+    drawPath();
+  }
+
+  function cellCenter(r,c){
+    return [c*U + U/2, r*U + U/2];
+  }
+
+  function drawPath(){
+    const poly = document.getElementById('pathLine');
+    if(!poly) return;
+    const pts = path.map(([r,c]) => cellCenter(r,c).join(',')).join(' ');
+    poly.setAttribute('points', pts);
+  }
+
+  // ---------- game state ----------
+  function newMaze(daily){
+    isDaily = !!daily;
+    size = LEVELS[level].size;
+    const seedStr = isDaily ? `${todayStr()}-${level}` : `${Math.random()}-${level}`;
+    const rng = hashSeed(seedStr);
+    grid = generateMaze(size, rng, LEVELS[level].branch);
+    const endpoints = computeEndpoints(grid, size);
+    startCell = endpoints.start;
+    goalCell = endpoints.end;
+    path = [ [startCell[0], startCell[1]] ];
+    dragging = false;
+    stopTimer();
+    updateTimerLabel(0);
+    movesLabel.textContent = '0';
+    puzzleLabel.textContent = isDaily ? `Laberinto n.° ${dayNumber()}` : 'Modo práctica';
+    winOverlay.classList.remove('open');
+    render();
+  }
+
+  function updateTimerLabel(ms){
+    const totalMs = Math.max(0, ms);
+    const mm = String(Math.floor(totalMs/60000)).padStart(2,'0');
+    const ss = String(Math.floor((totalMs%60000)/1000)).padStart(2,'0');
+    const tenths = Math.floor((totalMs%1000)/100);
+    timerLabel.textContent = `${mm}:${ss}.${tenths}`;
+  }
+
+  function startTimer(){
+    if(timerStart !== null) return;
+    timerStart = performance.now();
+    tick();
+  }
+
+  function tick(){
+    if(timerStart === null) return;
+    updateTimerLabel(performance.now() - timerStart);
+    timerRAF = requestAnimationFrame(tick);
+  }
+
+  function stopTimer(){
+    if(timerRAF) cancelAnimationFrame(timerRAF);
+    timerRAF = null;
+    timerStart = null;
+  }
+
+  function flashInvalid(){
+    mazeWrap.classList.remove('invalid');
+    void mazeWrap.offsetWidth;
+    mazeWrap.classList.add('invalid');
+  }
+
+  function wallBetween(r1,c1,r2,c2){
+    const a = grid[r1][c1];
+    if(r2 === r1-1) return a.top;
+    if(r2 === r1+1) return a.bottom;
+    if(c2 === c1-1) return a.left;
+    if(c2 === c1+1) return a.right;
+    return true;
+  }
+
+  function pointToCell(x,y){
+    let c = Math.floor(x/U);
+    let r = Math.floor(y/U);
+    c = Math.min(size-1, Math.max(0,c));
+    r = Math.min(size-1, Math.max(0,r));
+    return [r,c];
+  }
+
+  function svgPointFromEvent(evt){
+    const rect = svg.getBoundingClientRect();
+    const scaleX = (size*U) / rect.width;
+    const scaleY = (size*U) / rect.height;
+    return [(evt.clientX - rect.left) * scaleX, (evt.clientY - rect.top) * scaleY];
+  }
+
+  function handleWin(){
+    // capture elapsed time BEFORE stopping the timer (stopTimer clears timerStart)
+    const finalMs = timerStart !== null ? (performance.now() - timerStart) : 0;
+    stopTimer();
+    dragging = false;
+    const moves = path.length - 1;
+    const key = level;
+    if(sessionBest[key] === null || finalMs < sessionBest[key]) sessionBest[key] = finalMs;
+    updateBestLabel();
+    const mm = String(Math.floor(finalMs/60000)).padStart(2,'0');
+    const ss = String(Math.floor((finalMs%60000)/1000)).padStart(2,'0');
+    lastResult = { ms: finalMs, moves, level, isDaily, day: dayNumber() };
+    winSummary.innerHTML = `Lo resolviste en <span class="win-time">${mm}:${ss}</span> con ${moves} movimientos.`;
+    winOverlay.classList.add('open');
+  }
+
+  function updateBestLabel(){
+    const best = sessionBest[level];
+    if(best === null){ bestLabel.textContent = '—'; return; }
+    const mm = String(Math.floor(best/60000)).padStart(2,'0');
+    const ss = String(Math.floor((best%60000)/1000)).padStart(2,'0');
+    bestLabel.textContent = `${mm}:${ss}`;
+  }
+
+  // ---------- pointer interaction ----------
+  function onPointerDown(evt){
+    svg.setPointerCapture(evt.pointerId);
+    const [x,y] = svgPointFromEvent(evt);
+    const [r,c] = pointToCell(x,y);
+    const last = path[path.length-1];
+    if(r === last[0] && c === last[1]){
+      dragging = true;
+    } else if(path.length === 1 && r === startCell[0] && c === startCell[1]){
+      dragging = true;
+    }
+  }
+
+  function onPointerMove(evt){
+    if(!dragging) return;
+    const [x,y] = svgPointFromEvent(evt);
+    const [r,c] = pointToCell(x,y);
+    const last = path[path.length-1];
+    if(r === last[0] && c === last[1]) return;
+
+    const dr = Math.abs(r-last[0]), dc = Math.abs(c-last[1]);
+    const isAdjacent = (dr+dc) === 1;
+
+    if(path.length >= 2){
+      const prev = path[path.length-2];
+      if(r === prev[0] && c === prev[1]){
+        path.pop();
+        drawPath();
+        movesLabel.textContent = String(path.length-1);
+        return;
+      }
+    }
+
+    if(!isAdjacent) return;
+
+    if(wallBetween(last[0], last[1], r, c)){
+      flashInvalid();
+      return;
+    }
+
+    path.push([r,c]);
+    drawPath();
+    movesLabel.textContent = String(path.length-1);
+
+    if(path.length === 2) startTimer();
+
+    if(r === goalCell[0] && c === goalCell[1]){
+      handleWin();
+    }
+  }
+
+  function onPointerUp(){
+    dragging = false;
+  }
+
+  svg.addEventListener('pointerdown', onPointerDown);
+  svg.addEventListener('pointermove', onPointerMove);
+  svg.addEventListener('pointerup', onPointerUp);
+  svg.addEventListener('pointercancel', onPointerUp);
+
+  // ---------- controls ----------
+  document.querySelectorAll('.seg-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      level = btn.dataset.level;
+      newMaze(true);
+    });
+  });
+
+  document.getElementById('newMazeBtn').addEventListener('click', () => newMaze(false));
+  document.getElementById('resetBtn').addEventListener('click', () => {
+    path = [ [startCell[0], startCell[1]] ];
+    dragging = false;
+    stopTimer();
+    updateTimerLabel(0);
+    movesLabel.textContent = '0';
+    drawPath();
+  });
+  function buildShareText(){
+    if(!lastResult) return '';
+    const diffEmoji = { easy: '🟩', medium: '🟨', hard: '🟥' }[lastResult.level];
+    const mm = String(Math.floor(lastResult.ms/60000)).padStart(2,'0');
+    const ss = String(Math.floor((lastResult.ms%60000)/1000)).padStart(2,'0');
+    const title = lastResult.isDaily ? `Laberinto diario #${lastResult.day}` : 'Laberinto (práctica)';
+    return `${title} ${diffEmoji}\n⏱️ ${mm}:${ss} · ${lastResult.moves} movimientos\n${location.href}`;
+  }
+
+  function copyToClipboard(text){
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      return navigator.clipboard.writeText(text);
+    }
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try { document.execCommand('copy'); } catch(e) {}
+    document.body.removeChild(ta);
+    return Promise.resolve();
+  }
+
+  document.getElementById('shareBtn').addEventListener('click', (e) => {
+    const btn = e.currentTarget;
+    const text = buildShareText();
+    if(!text) return;
+    copyToClipboard(text).then(() => {
+      const original = btn.textContent;
+      btn.textContent = '¡Copiado!';
+      setTimeout(() => { btn.textContent = original; }, 1500);
+    });
+  });
+
+  document.getElementById('winAgainBtn').addEventListener('click', () => newMaze(false));
+  document.getElementById('winCloseBtn').addEventListener('click', () => winOverlay.classList.remove('open'));
+
+  // ---------- init ----------
+  dateLabel.textContent = new Date().toLocaleDateString('es-AR', { day: 'numeric', month: 'long' });
+  newMaze(true);
+})();
+</script>
+
+</body>
+</html>
