@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dígalo con mímica — Cine y series árabes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F5F1E6; --surface:#FFFFFF; --ink:#23301F; --ink-soft:#5B6A55;
+  --forest:#2F4A3D; --forest-deep:#22362C; --moss:#8AA07E; --moss-soft:#DCE6D3;
+  --gold:#C98A3B; --gold-deep:#A96E27; --line:#E1DAC7; --danger:#B5563E;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+  box-sizing:border-box;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#1B2420; --surface:#232E27; --ink:#EFEAE0; --ink-soft:#AEB8A6;
+    --line:#33413A; --moss-soft:#2B3A30;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#1B2420; --surface:#232E27; --ink:#EFEAE0; --ink-soft:#AEB8A6;
+  --line:#33413A; --moss-soft:#2B3A30;
+}
+*{box-sizing:border-box;}
+html,body{height:100%;}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:"Work Sans",sans-serif;
+  display:flex; align-items:center; justify-content:center;
+  min-height:100%; padding:32px 20px; position:relative; overflow-x:hidden;
+}
+body::before, body::after{
+  content:""; position:fixed; border-radius:50%; filter:blur(60px); opacity:.5; z-index:0;
+}
+body::before{ width:320px; height:320px; background:var(--moss-soft); top:-100px; left:-100px; }
+body::after{ width:260px; height:260px; background:var(--gold); opacity:.18; bottom:-80px; right:-80px; }
+
+.card{
+  position:relative; z-index:1; background:var(--surface);
+  border:1px solid var(--line); border-radius:28px;
+  width:100%; max-width:460px; padding:40px 32px;
+  box-shadow:0 20px 50px rgba(34,54,44,.08);
+}
+h1{
+  font-family:"Fraunces",serif; font-weight:600; font-size:1.6rem;
+  margin:0 0 6px; color:var(--forest-deep); line-height:1.15;
+}
+.subtitle{ margin:0 0 28px; color:var(--ink-soft); font-size:.95rem; }
+.field{ margin-bottom:22px; }
+.field label{ display:block; font-size:.85rem; font-weight:600; color:var(--ink-soft); margin-bottom:10px; }
+.stepper{ display:flex; align-items:center; gap:16px; }
+.stepper button{
+  width:44px; height:44px; border-radius:50%; border:1px solid var(--line);
+  background:var(--surface); color:var(--forest-deep); font-size:1.3rem; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; line-height:1;
+}
+.stepper button:active{ background:var(--moss-soft); }
+.stepper .value{ font-family:"Fraunces",serif; font-size:1.6rem; font-weight:600; min-width:44px; text-align:center; }
+.btn{
+  width:100%; border:none; border-radius:16px; padding:16px 20px;
+  font-family:"Work Sans",sans-serif; font-weight:600; font-size:1rem; cursor:pointer;
+  transition:transform .08s ease;
+}
+.btn:active{ transform:scale(.98); }
+.btn-primary{ background:var(--forest); color:#F5F1E6; }
+.btn-gold{ background:var(--gold); color:#2A1B08; }
+.btn-ghost{
+  background:transparent; color:var(--ink-soft); border:1px solid var(--line);
+  font-size:.9rem; padding:12px 16px;
+}
+.hidden{ display:none !important; }
+
+.team-name{ font-family:"Fraunces",serif; font-size:2rem; font-weight:700; color:var(--forest-deep); margin:0; }
+.round-tag{ color:var(--ink-soft); font-size:.9rem; margin:6px 0 30px; }
+.stage{ min-height:170px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; gap:14px; margin-bottom:24px; }
+.title-word{ font-family:"Fraunces",serif; font-size:1.5rem; font-weight:600; color:var(--forest-deep); line-height:1.3; }
+.title-detail{ color:var(--ink-soft); font-size:.9rem; max-width:34ch; }
+.timer{ font-family:"Fraunces",serif; font-size:3.2rem; font-weight:700; color:var(--gold-deep); }
+.actions{ display:flex; flex-direction:column; gap:12px; }
+.skip-link{
+  background:none; border:none; color:var(--ink-soft); text-decoration:underline;
+  font-size:.85rem; cursor:pointer; margin-top:4px; padding:6px;
+}
+.endscreen h1{ margin-bottom:14px; }
+</style>
+</head>
+<body>
+
+<div class="card" id="setupScreen">
+  <h1>Dígalo con mímica</h1>
+  <p class="subtitle">Cine y series árabes (y del mundo árabe)</p>
+
+  <div class="field">
+    <label>Cantidad de equipos</label>
+    <div class="stepper">
+      <button type="button" onclick="changeVal('teams',-1)">−</button>
+      <span class="value" id="teamsVal">2</span>
+      <button type="button" onclick="changeVal('teams',1)">+</button>
+    </div>
+  </div>
+
+  <div class="field">
+    <label>Rondas por equipo</label>
+    <div class="stepper">
+      <button type="button" onclick="changeVal('rounds',-1)">−</button>
+      <span class="value" id="roundsVal">5</span>
+      <button type="button" onclick="changeVal('rounds',1)">+</button>
+    </div>
+  </div>
+
+  <button class="btn btn-primary" onclick="startGame()">Comenzar</button>
+</div>
+
+<div class="card hidden" id="turnScreen">
+  <p class="team-name" id="teamLabel">Equipo 1</p>
+  <p class="round-tag" id="roundLabel">Ronda 1 de 5</p>
+
+  <div class="stage" id="stagePreDraw">
+    <p style="color:var(--ink-soft);">Tocá para sortear una película o serie.</p>
+  </div>
+
+  <div class="stage hidden" id="stageCard">
+    <p class="title-word" id="titleWord">—</p>
+    <p class="title-detail" id="titleDetail">—</p>
+  </div>
+
+  <div class="stage hidden" id="stageTimer">
+    <p class="timer" id="timerText">1:00</p>
+    <p style="color:var(--ink-soft); font-size:.9rem;">¡A actuar!</p>
+  </div>
+
+  <div class="actions" id="actionsPreDraw">
+    <button class="btn btn-primary" onclick="drawTitle()">Sortear</button>
+  </div>
+
+  <div class="actions hidden" id="actionsCard">
+    <button class="btn btn-gold" onclick="beginTimer()">Comenzar</button>
+    <button class="skip-link" onclick="drawTitle()">Es muy difícil. Dame otra</button>
+  </div>
+</div>
+
+<div class="card hidden" id="timeUpScreen">
+  <h1>¡Se acabó el tiempo!</h1>
+  <p class="subtitle" id="nextTeamLabel">Le toca a Equipo 2</p>
+  <button class="btn btn-primary" onclick="nextTurn()">Continuar</button>
+</div>
+
+<div class="card hidden endscreen" id="endScreen">
+  <h1>¡Juego terminado!</h1>
+  <p class="subtitle">Todos los equipos completaron sus rondas.</p>
+  <button class="btn btn-primary" onclick="resetGame()">Jugar de nuevo</button>
+</div>
+
+<script>
+const TITLES = [
+["Aladdín","Película animada de Disney (1992) ambientada en la ciudad ficticia de Agrabah."],
+["El Príncipe de Egipto","Animada (1998), cuenta la historia de Moisés en el Antiguo Egipto."],
+["Simbad: la leyenda de los siete mares","Película animada de 2003 sobre el legendario marinero árabe."],
+["La Momia","Película de aventuras de 1999 ambientada en el Egipto de los faraones."],
+["El Regreso de la Momia","Secuela de La Momia, estrenada en 2001."],
+["Cleopatra","Clásico de 1963 con Elizabeth Taylor como la reina de Egipto."],
+["Los Diez Mandamientos","Clásico de 1956 ambientado en el Antiguo Egipto."],
+["Casablanca","Clásico de 1942 ambientado en Marruecos, uno de los más famosos de la historia."],
+["Lawrence de Arabia","Épica británica de 1962 sobre la revuelta árabe."],
+["Indiana Jones y la Última Cruzada","Película de 1989 con escenas en Medio Oriente."],
+["El Reino de los Cielos","Película de Ridley Scott (2005) ambientada en las Cruzadas, en Jerusalén."],
+["Éxodo: Dioses y Reyes","Película de 2014 sobre Moisés y el Antiguo Egipto."],
+["Príncipe de Persia: las arenas del tiempo","Película de Disney de 2010 basada en el videojuego."],
+["Zohan: licencia para peinar","Comedia de 2008 con Adam Sandler, ambientada en Medio Oriente."],
+["Argo","Basada en hechos reales en Irán, ganó el Oscar a Mejor Película en 2013."],
+["Persépolis","Animada franco-iraní (2007) basada en la novela gráfica de Marjane Satrapi."],
+["Una Separación","Película iraní que ganó el Oscar a mejor película extranjera en 2012."],
+["El Viajante","Película iraní que ganó el Oscar a mejor película extranjera en 2017."],
+["Caramelo","Película libanesa de 2007 dirigida por Nadine Labaki."],
+["Cafarnaúm","Película libanesa nominada al Oscar en 2019, de Nadine Labaki."],
+["El Insulto","Película libanesa nominada al Oscar en 2018."],
+["Paraíso Ahora","Película palestina nominada al Oscar en 2006."],
+["Incendios","Coproducción canadiense-libanesa nominada al Oscar en 2011."],
+["Theeb","Película jordana nominada al Oscar en 2016."],
+["Omar","Película palestina nominada al Oscar en 2014."],
+["Wadjda (La Bicicleta Verde)","Primera película saudita dirigida por una mujer (2012)."],
+["El Profeta","Película animada de 2014 basada en el libro de Kahlil Gibran."],
+["Las Mil y Una Noches","Telenovela turca que abrió el mercado de novelas en la Argentina, inspirada en los cuentos árabes."],
+["El Sultán","Telenovela turca (Muhteşem Yüzyıl) ambientada en el Imperio Otomano."],
+["El Clon","Telenovela brasileña ambientada en parte en Marruecos, gran éxito en Argentina."],
+["Alí Babá y los Cuarenta Ladrones","Cuento clásico de Las Mil y Una Noches."],
+["Simbad el Marino","Personaje clásico de los cuentos árabes, protagonista de infinitas películas."],
+["Marruecos","Clásico de Hollywood de 1930 con Marlene Dietrich, ambientado en el norte de África."],
+["Bagdad Café","Película de culto de 1987, con "+"\"Bagdad\""+" en el título."],
+["La Reina del Desierto","Película de 2015 sobre Gertrude Bell y Medio Oriente."],
+["El Ladrón de Bagdad","Clásico de aventuras de 1940 inspirado en Las Mil y Una Noches."],
+["300","Película sobre la batalla de las Termópilas, ambientada en el antiguo Medio Oriente."],
+["Un Profeta","Película francesa (2009) sobre un joven árabe en prisión, ganadora en Cannes."]
+];
+
+let TEAMS=2, ROUNDS=5, turnIndex=0, remainingCards=[], timerInterval=null;
+
+function changeVal(kind, delta){
+  if(kind==='teams'){
+    TEAMS=Math.min(8,Math.max(1,TEAMS+delta));
+    document.getElementById('teamsVal').textContent=TEAMS;
+  } else {
+    ROUNDS=Math.min(50,Math.max(1,ROUNDS+delta));
+    document.getElementById('roundsVal').textContent=ROUNDS;
+  }
+}
+
+function shuffle(arr){
+  const a=arr.slice();
+  for(let i=a.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [a[i],a[j]]=[a[j],a[i]];
+  }
+  return a;
+}
+
+function refillBag(){ remainingCards = shuffle(TITLES); }
+
+function show(id){
+  ['setupScreen','turnScreen','timeUpScreen','endScreen'].forEach(s=>{
+    document.getElementById(s).classList.toggle('hidden', s!==id);
+  });
+}
+
+function startGame(){
+  refillBag();
+  turnIndex=0;
+  show('turnScreen');
+  renderTurn();
+}
+
+function currentTeam(){ return (turnIndex % TEAMS) + 1; }
+function currentRound(){ return Math.floor(turnIndex / TEAMS) + 1; }
+
+function renderTurn(){
+  document.getElementById('teamLabel').textContent = 'Equipo ' + currentTeam();
+  document.getElementById('roundLabel').textContent = 'Ronda ' + currentRound() + ' de ' + ROUNDS;
+  document.getElementById('stagePreDraw').classList.remove('hidden');
+  document.getElementById('stageCard').classList.add('hidden');
+  document.getElementById('stageTimer').classList.add('hidden');
+  document.getElementById('actionsPreDraw').classList.remove('hidden');
+  document.getElementById('actionsCard').classList.add('hidden');
+}
+
+function drawTitle(){
+  if(remainingCards.length===0) refillBag();
+  const [title, detail] = remainingCards.pop();
+  document.getElementById('titleWord').textContent = title;
+  document.getElementById('titleDetail').textContent = detail;
+  document.getElementById('stagePreDraw').classList.add('hidden');
+  document.getElementById('stageCard').classList.remove('hidden');
+  document.getElementById('actionsPreDraw').classList.add('hidden');
+  document.getElementById('actionsCard').classList.remove('hidden');
+}
+
+function beginTimer(){
+  document.getElementById('stageCard').classList.add('hidden');
+  document.getElementById('stageTimer').classList.remove('hidden');
+  document.getElementById('actionsCard').classList.add('hidden');
+  let secs=60;
+  updateTimerText(secs);
+  timerInterval=setInterval(()=>{
+    secs--;
+    updateTimerText(secs);
+    if(secs<=0){
+      clearInterval(timerInterval);
+      onTimeUp();
+    }
+  },1000);
+}
+
+function updateTimerText(secs){
+  const m=Math.floor(secs/60), s=secs%60;
+  document.getElementById('timerText').textContent = m+':'+String(s).padStart(2,'0');
+}
+
+function onTimeUp(){
+  turnIndex++;
+  if(turnIndex >= TEAMS*ROUNDS){
+    show('endScreen');
+    return;
+  }
+  document.getElementById('nextTeamLabel').textContent = 'Le toca a Equipo ' + currentTeam();
+  show('timeUpScreen');
+}
+
+function nextTurn(){
+  show('turnScreen');
+  renderTurn();
+}
+
+function resetGame(){
+  TEAMS=2; ROUNDS=5;
+  document.getElementById('teamsVal').textContent=TEAMS;
+  document.getElementById('roundsVal').textContent=ROUNDS;
+  show('setupScreen');
+}
+</script>
+</body>
+</html>

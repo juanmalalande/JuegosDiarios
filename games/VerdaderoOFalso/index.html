@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Verdadero o Falso — Comidas Árabes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --cream:#F7EFDD;
+    --plum:#2E1A2B;
+    --coral:#F2542D;
+    --mustard:#F4B93E;
+    --teal:#2A9D8F;
+    --pink:#E85A8A;
+    --paper:#FFFBF2;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){ --cream:#221726; --paper:#2c1c2f; --plum:#F7EFDD; }
+  }
+  :root[data-theme="dark"]{ --cream:#221726; --paper:#2c1c2f; --plum:#F7EFDD; }
+
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--cream);
+    color:var(--plum);
+    font-family:'Nunito',sans-serif;
+    display:flex; align-items:center; justify-content:center;
+    padding-top:env(safe-area-inset-top,0px);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+    overflow-x:hidden;
+  }
+  h1,h2,h3,.display{ font-family:'Fredoka',sans-serif; font-weight:600; }
+
+  .stage{
+    width:100%; max-width:480px; min-height:100svh;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:28px 20px; position:relative;
+  }
+
+  /* --- blobs decorativos --- */
+  .blob{position:absolute; border-radius:42% 58% 63% 37% / 41% 44% 56% 59%; opacity:.9; z-index:0;}
+  .blob1{width:170px;height:170px; background:var(--mustard); top:-40px; left:-50px;}
+  .blob2{width:130px;height:130px; background:var(--teal); bottom:-30px; right:-40px;}
+
+  .card{
+    position:relative; z-index:1; width:100%;
+    background:var(--paper);
+    border:3px solid var(--plum);
+    border-radius:28px;
+    box-shadow:8px 8px 0 var(--plum);
+    padding:32px 26px;
+    text-align:center;
+  }
+
+  /* landing */
+  .mascot{ font-size:64px; display:block; margin-bottom:6px; }
+  .title{ font-size:2.1rem; line-height:1.05; margin:6px 0 10px; }
+  .title .vf{ color:var(--coral); }
+  .title .vo{ color:var(--teal); }
+  .subtitle{ font-size:1rem; opacity:.85; margin:0 0 24px; }
+
+  .btn{
+    font-family:'Fredoka',sans-serif; font-weight:600; font-size:1.05rem;
+    border:3px solid var(--plum); border-radius:16px;
+    padding:14px 26px; cursor:pointer;
+    background:var(--mustard); color:var(--plum);
+    box-shadow:5px 5px 0 var(--plum);
+    transition:transform .12s ease, box-shadow .12s ease;
+    width:100%;
+  }
+  .btn:active{ transform:translate(3px,3px); box-shadow:2px 2px 0 var(--plum); }
+  .btn:focus-visible{ outline:3px solid var(--pink); outline-offset:2px; }
+
+  .btn-row{ display:flex; gap:14px; margin-top:22px; }
+  .btn-true{ background:var(--teal); color:var(--paper); }
+  .btn-false{ background:var(--coral); color:var(--paper); }
+
+  /* progreso */
+  .progress{ font-family:'Fredoka',sans-serif; font-size:.85rem; margin-bottom:14px; opacity:.7; }
+  .score-chip{
+    position:absolute; top:14px; right:14px; z-index:2;
+    background:var(--pink); color:var(--paper); font-family:'Fredoka',sans-serif;
+    font-weight:600; border-radius:999px; padding:5px 12px; font-size:.85rem;
+    border:2px solid var(--plum);
+  }
+
+  .food-icon{ font-size:70px; display:block; margin-bottom:10px; }
+  .food-name{ font-size:1.7rem; margin:4px 0 4px; }
+  .food-hint{ font-size:.85rem; opacity:.65; margin-bottom:6px;}
+
+  /* resultado */
+  .verdict{ font-family:'Fredoka',sans-serif; font-weight:700; font-size:1.4rem; margin:14px 0 6px; }
+  .verdict.ok{ color:var(--teal); }
+  .verdict.bad{ color:var(--coral); }
+  .detail-box{
+    background:var(--cream); border:2.5px dashed var(--plum); border-radius:18px;
+    padding:14px 16px; margin:14px 0; text-align:left; font-size:.95rem; line-height:1.4;
+  }
+  .detail-box b{ font-family:'Fredoka',sans-serif; }
+
+  .end-emoji{ font-size:60px; }
+  .final-score{ font-size:2.6rem; margin:6px 0; color:var(--coral); }
+
+  .hidden{ display:none !important; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="blob blob1"></div>
+  <div class="blob blob2"></div>
+
+  <!-- LANDING -->
+  <section id="landing" class="card">
+    <span class="mascot">🧆</span>
+    <h1 class="title"><span class="vf">Verdadero</span> o <span class="vo">Falso</span></h1>
+    <p class="subtitle">Te mostramos nombres de comidas árabes.<br>¿Cuáles existen y cuáles nos inventamos?</p>
+    <button class="btn" id="startBtn">Comenzar</button>
+  </section>
+
+  <!-- JUEGO -->
+  <section id="game" class="card hidden">
+    <span class="score-chip" id="scoreChip">0 aciertos</span>
+    <p class="progress" id="progress"></p>
+
+    <div id="question">
+      <span class="food-icon">🍽️</span>
+      <h2 class="food-name" id="foodName">—</h2>
+      <p class="food-hint">¿Existe esta comida árabe?</p>
+      <div class="btn-row">
+        <button class="btn btn-true" id="trueBtn">Verdadero</button>
+        <button class="btn btn-false" id="falseBtn">Falso</button>
+      </div>
+    </div>
+
+    <div id="result" class="hidden">
+      <span class="food-icon" id="resultIcon">🍽️</span>
+      <h2 class="food-name" id="resultName">—</h2>
+      <p class="verdict" id="verdictText"></p>
+      <div class="detail-box" id="detailBox"></div>
+      <button class="btn" id="nextBtn">Siguiente</button>
+    </div>
+  </section>
+
+  <!-- FIN -->
+  <section id="end" class="card hidden">
+    <span class="end-emoji">🌿</span>
+    <h1 class="title">¡Se acabó!</h1>
+    <p class="subtitle">Tu resultado final</p>
+    <p class="final-score" id="finalScore">0 / 0</p>
+    <button class="btn" id="restartBtn">Jugar de nuevo</button>
+  </section>
+</div>
+
+<script>
+const FOODS = [
+  {name:"Fatay", real:true, icon:"🥟", detail:"El fatay es una empanadita de masa fina rellena de carne, cebolla y especias, típica de la cocina árabe y muy popular en Argentina."},
+  {name:"Hummus", real:true, icon:"🫘", detail:"Puré cremoso de garbanzos, tahini, limón y ajo. Uno de los platos árabes más conocidos en todo el mundo."},
+  {name:"Tabule", real:true, icon:"🥗", detail:"Ensalada fresca de perejil picado fino, trigo burgol, tomate, cebolla, limón y aceite de oliva."},
+  {name:"Kipe", real:true, icon:"🧅", detail:"Bolitas o tortas de trigo burgol y carne, especiadas, que se pueden comer crudas, fritas o al horno."},
+  {name:"Baba ganush", real:true, icon:"🍆", detail:"Puré ahumado de berenjena asada, tahini, limón y ajo. Prima hermana del hummus."},
+  {name:"Sharma", real:true, icon:"🌯", detail:"Carne marinada y cocida en capas sobre un asador vertical, servida en pan árabe con vegetales y salsas."},
+  {name:"Falafel", real:true, icon:"🧆", detail:"Bolitas fritas de garbanzo (o habas) con especias, muy populares en todo Medio Oriente."},
+  {name:"Baklava", real:true, icon:"🍯", detail:"Postre de finas capas de masa filo, nueces o pistachos y almíbar de miel o agua de azahar."},
+  {name:"Manaish", real:true, icon:"🫓", detail:"Especie de pizza árabe de pan plano cubierto con zaatar, queso o carne, horneado."},
+  {name:"Halawa", real:true, icon:"🍬", detail:"Dulce denso hecho a base de tahini o sémola, muy usado en la repostería árabe."},
+  {name:"Al Falafal", real:false, icon:"❓", detail:"Suena parecido al falafel, pero no existe: es un invento para confundirte."},
+  {name:"Kubaleta", real:false, icon:"❓", detail:"Nombre inventado que mezcla \"kipe\" con \"chuleta\". No existe en la cocina árabe."},
+  {name:"Zaatarola", real:false, icon:"❓", detail:"Suena a especia árabe, pero es un invento: no hay ningún plato con este nombre."},
+  {name:"Tahinete", real:false, icon:"❓", detail:"Un juego de palabras con \"tahini\", pero esta comida no existe."},
+  {name:"Berenjenoso", real:false, icon:"❓", detail:"Nombre gracioso inventado a partir de \"berenjena\". No es un plato real."},
+  {name:"Hummusín", real:false, icon:"❓", detail:"Suena a una variante del hummus, pero es completamente inventado."},
+];
+
+let deck = [];
+let idx = 0;
+let score = 0;
+
+const $ = (id) => document.getElementById(id);
+
+function shuffle(arr){
+  for(let i=arr.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]]=[arr[j],arr[i]];
+  }
+  return arr;
+}
+
+function startGame(){
+  deck = shuffle([...FOODS]);
+  idx = 0; score = 0;
+  $("landing").classList.add("hidden");
+  $("end").classList.add("hidden");
+  $("game").classList.remove("hidden");
+  showQuestion();
+}
+
+function showQuestion(){
+  const item = deck[idx];
+  $("question").classList.remove("hidden");
+  $("result").classList.add("hidden");
+  $("foodName").textContent = item.name;
+  $("progress").textContent = `Comida ${idx+1} de ${deck.length}`;
+  $("scoreChip").textContent = `${score} aciertos`;
+}
+
+function answer(userSaysTrue){
+  const item = deck[idx];
+  const correct = (userSaysTrue === item.real);
+  if(correct) score++;
+
+  $("question").classList.add("hidden");
+  $("result").classList.remove("hidden");
+  $("resultName").textContent = item.name;
+  $("scoreChip").textContent = `${score} aciertos`;
+
+  const verdict = $("verdictText");
+  if(item.real){
+    $("resultIcon").textContent = item.icon;
+    verdict.textContent = correct ? "¡Correcto! Existe de verdad 🎉" : "En realidad, sí existe.";
+  } else {
+    $("resultIcon").textContent = "🙅";
+    verdict.textContent = correct ? "¡Correcto, es un invento! 🎉" : "En realidad, no existe.";
+  }
+  verdict.className = "verdict " + (correct ? "ok" : "bad");
+  $("detailBox").innerHTML = `<b>${item.name}${item.real ? "" : " (inventado)"}:</b> ${item.detail}`;
+}
+
+function nextQuestion(){
+  idx++;
+  if(idx >= deck.length){
+    $("game").classList.add("hidden");
+    $("end").classList.remove("hidden");
+    $("finalScore").textContent = `${score} / ${deck.length}`;
+  } else {
+    showQuestion();
+  }
+}
+
+$("startBtn").addEventListener("click", startGame);
+$("trueBtn").addEventListener("click", () => answer(true));
+$("falseBtn").addEventListener("click", () => answer(false));
+$("nextBtn").addEventListener("click", nextQuestion);
+$("restartBtn").addEventListener("click", startGame);
+</script>
+</body>
+</html>
